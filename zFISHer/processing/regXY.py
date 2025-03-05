@@ -50,9 +50,6 @@ def normalize_img(img):
     min_val = img_array.min()
     max_val = img_array.max()
     
-    print(f"MIN VAL: {min_val}")
-    print(f"MAX VAL: {max_val}")
-    
     # Normalize the image to the range [0, 1]
     normalized_array = (img_array - min_val) / (max_val - min_val)
     

@@ -1,8 +1,6 @@
 import tkinter as tk
 from tkinter import filedialog
 
-
-
 import zFISHer.utils.config as cfg
 import zFISHer.config.config_manager as cfgmgr
 from zFISHer.gui.logger import Logger
@@ -12,6 +10,7 @@ import zFISHer.processing.process_nd2 as process_nd2
 User supplies path to the two XYZ image stacks to use for analysis.
 """
 
+#TODO Incorporate logic to handle XYZC TIFF stack inputs
 
 class FileInputGUI():
     """
@@ -128,14 +127,34 @@ class FileInputGUI():
         self.f2_reg_c_var.set(None)
 
         # Create the dropdown menu (OptionMenu)
-        self.f1_reg_c_dd = tk.OptionMenu(self.options_frame, self.f1_reg_c_var, 'None1','None2','None3')
+        self.f1_reg_c_dd = tk.OptionMenu(self.options_frame, self.f1_reg_c_var, 'NONE')
         self.f1_reg_c_dd.grid(row=6, column=5, padx=10, pady=5)
-        self.f2_reg_c_dd = tk.OptionMenu(self.options_frame, self.f2_reg_c_var, 'None1','None2','None3')
+        self.f2_reg_c_dd = tk.OptionMenu(self.options_frame, self.f2_reg_c_var, 'NONE')
         self.f2_reg_c_dd.grid(row=6, column=10, padx=10, pady=5)
 
         # Bind the on_channel_select function to the dropdown menu event (when selection changes)
         self.f1_reg_c_var.trace_add("write", self.on_channel_select)
         self.f2_reg_c_var.trace_add("write", self.on_channel_select)
+
+        # FILE SEGMENTATION CHANNEL SELECTION
+        seg_c_description = tk.Label(self.options_frame, text="Nuclei Segmentation Channel:")
+        seg_c_description.grid(row=8, column=2, sticky="e", padx=10, pady=5)
+
+        # Create a Tkinter StringVar to store the selected SEG channel
+        self.f1_seg_c_var = tk.StringVar()
+        self.f2_seg_c_var = tk.StringVar()
+        self.f1_seg_c_var.set(None)  # Set the default selected channel to the first in the list
+        self.f2_seg_c_var.set(None)
+
+        # Create the SEG dropdown menu (OptionMenu)
+        self.f1_seg_c_dd = tk.OptionMenu(self.options_frame, self.f1_seg_c_var, 'NONE')
+        self.f1_seg_c_dd.grid(row=8, column=5, padx=10, pady=5)
+        self.f2_seg_c_dd = tk.OptionMenu(self.options_frame, self.f2_seg_c_var, 'NONE')
+        self.f2_seg_c_dd.grid(row=8, column=10, padx=10, pady=5)
+
+        # Bind the on_channel_select function to the dropdown menu event (when selection changes)
+        self.f1_seg_c_var.trace_add("write", self.on_channel_select)
+        self.f2_seg_c_var.trace_add("write", self.on_channel_select)
 
 
     def on_channel_select(self, *args):
@@ -143,9 +162,7 @@ class FileInputGUI():
         Update options widgets after user selects input file path.
         """
 
-        print("Update dds")
-        print(self.f1_reg_c_var.get())
-        print(self.f2_reg_c_var.get())
+        pass
 
 
     def set_initial_filepaths(self):
@@ -215,6 +232,27 @@ class FileInputGUI():
         self.f2_reg_c_dd = tk.OptionMenu(self.options_frame, self.f2_reg_c_var, *f2_c_list)
         self.f1_reg_c_dd.grid(row=6, column=5, padx=10, pady=5)
         self.f2_reg_c_dd.grid(row=6, column=10, padx=10, pady=5)
+        self.dd_dapi_check(f1_c_list,f2_c_list)
+
+
+    def dd_dapi_check(self,f1_c_list,f2_c_list):
+        """
+        If DAPI is detected in dropdowns, automatically set dropdown selection to that channel.
+        """
+
+        # Check for 'DAPI' or 'dapi' in f1_c_list and set it
+        for item in f1_c_list:
+            if item.lower() == 'dapi':  # Case-insensitive comparison
+                self.f1_reg_c_var.set(item)  # Set the exact item found (preserve case)
+                self.f1_seg_c_var.set(item)
+                break
+
+        # Check for 'DAPI' or 'dapi' in f2_c_list and set it
+        for item in f2_c_list:
+            if item.lower() == 'dapi':  # Case-insensitive comparison
+                self.f2_reg_c_var.set(item)  # Set the exact item found (preserve case)
+                self.f2_seg_c_var.set(item)
+                break
 
 
     def finalize_inputs(self):
@@ -239,6 +277,8 @@ class FileInputGUI():
         # Pass user-defined options
         cfg.F1_REG_C = self.f1_reg_c_var.get()
         cfg.F2_REG_C = self.f2_reg_c_var.get()
+        cfg.F1_SEG_C = self.f1_seg_c_var.get()
+        cfg.F2_SEG_C = self.f2_seg_c_var.get()
 
         # Switch to the next GUI passed by GUImanager
         self.switch()      
