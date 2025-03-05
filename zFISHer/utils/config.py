@@ -50,6 +50,10 @@ F2_Z_NUM = None
 F1_REG_C = None
 F2_REG_C = None
 
+# Channel to use for nuclei segmentation
+F1_SEG_C = None
+F2_SEG_C = None
+
 # Offset of File 2 relative to File 1 XYZ
 OFFSET_X = None # in pixels
 OFFSET_Y = None # in pixels
