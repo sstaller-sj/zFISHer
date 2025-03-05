@@ -15,10 +15,8 @@ Takes the desired nucleus image and attempts to run segementation on image. The 
 
 
 class AutoScrollbar(tk.Scrollbar):
-    '''
-    A scrollbar that hides itself if it's not needed.
-        Works only if you use the grid geometry manager 
-    '''
+    ''' A scrollbar that hides itself if it's not needed.
+        Works only if you use the grid geometry manager '''
     def set(self, lo, hi):
         if float(lo) <= 0.0 and float(hi) >= 1.0:
             self.grid_remove()
@@ -32,18 +30,14 @@ class AutoScrollbar(tk.Scrollbar):
     def place(self, **kw):
         raise tk.TclError('Cannot use place with this widget')
     
-
+    
 class SegmentationGUI(tk.Frame):
-
-    def __init__(self, master, switch_to_new_gui,logger):
-
+    def __init__(self, master, switch_to_new_gui, logger):
         self.master = master
+        self.logger = logger
         self.switch = switch_to_new_gui  # Save the function
 
-        self.load_canvas_mip(master)
-        self.setup_window(master)
 
-        return
         self.f1_ntag = cfgmgr.get_config_value("FILE_1_NAMETAG")
         self.f2_ntag = cfgmgr.get_config_value("FILE_2_NAMETAG")
         self.f1_channels = cfgmgr.get_config_value("FILE_2_NAMETAG")
@@ -56,7 +50,9 @@ class SegmentationGUI(tk.Frame):
         self.f2_ntag = cfgmgr.get_config_value("FILE_2_NAMETAG")
 
         self.f1_reg_c = self.get_reg_channel(self.f1_cs)
+        self.logger.log_message(f"Channel 1 registration channel: INDEX:{self.f1_reg_c} - NAME:{self.f1_cs[self.f1_reg_c]}")
         self.f2_reg_c= self.get_reg_channel(self.f2_cs)
+        self.logger.log_message(f"Channel 2 registration channel: INDEX:{self.f2_reg_c} - NAME:{self.f2_cs[self.f2_reg_c]}")   
 
         self.F1_base_path = os.listdir(os.path.join(os.path.join(self.processing_dir,self.f1_ntag,self.f1_cs[self.f1_reg_c],"MIP"))[0])
         self.F2_base_path = os.listdir(os.path.join(os.path.join(self.processing_dir,self.f2_ntag,self.f2_cs[self.f2_reg_c],"MIP"))[0])
@@ -85,8 +81,48 @@ class SegmentationGUI(tk.Frame):
         self.nuccount = 0
 
 
-        #########################Initialize TKINTER frame################
+        #Initialize TKINTER frame
+        tk.Frame.__init__(self, master=self.master)
 
+        self.master.title('ZFISHER --- Nucleus Segmentation')
+
+        # Set the initial size of the main frame
+        master.geometry("1024x1022")  # Example size: width=800, height=600
+
+        # Vertical and horizontal scrollbars for canvas
+        vbar = AutoScrollbar(self.master, orient='vertical')
+        hbar = AutoScrollbar(self.master, orient='horizontal')
+        vbar.grid(row=0, column=1, rowspan=2, sticky='ns')
+        hbar.grid(row=2, column=0, sticky='we')
+
+        # Create canvas 
+        self.canvas = tk.Canvas(self.master, highlightthickness=0,
+                                xscrollcommand=hbar.set, yscrollcommand=vbar.set)
+        self.canvas.grid(row=0, column=0, sticky='nswe')
+        self.canvas.update()  # wait till canvas is created
+        vbar.configure(command=self.scroll_y)  # bind scrollbars to the canvas
+        hbar.configure(command=self.scroll_x)
+        # Make the canvas expandable
+        self.master.rowconfigure(0, weight=1)
+        self.master.columnconfigure(0, weight=1)
+
+        mip_tomask_list = os.listdir(os.path.join(self.processing_dir,self.f1_ntag,self.f1_cs[self.f1_reg_c],"MIP"))
+        mip_tomask = os.path.join(self.mip_tomask_dir,mip_tomask_list[0])
+        self.input_img_path = mip_tomask
+
+        self.image = Image.open(self.input_img_path)  # open image
+        self.image = self.normalize_image(self.image)
+
+        self.width, self.height = self.image.size
+        print(self.width)
+        print(self.height)
+        self.baseHeight = self.height
+        self.baseWidth = self.width
+        self.imscale = 1.0  # scale for the canvaas image
+        self.scalefactor = 1.0
+        self.delta = 1.3  # zoom magnitude
+        # Put image into container rectangle and use it to set proper coordinates to the image
+        self.container = self.canvas.create_rectangle(0, 0, self.width, self.height, width=0)
 
         #---------------------------------------------------------------------------------------------------------------------------
         #MAKE CONTROL PANEL
@@ -162,112 +198,6 @@ class SegmentationGUI(tk.Frame):
 
         self.scrollview = [0,0]
 
-    def load_canvas_mip(self,master):
-        pass
-
-    def setup_window(self, master):
-        """
-        Builds the GUI window and populates with widgets.
-
-        Args:
-        master (tkinter.Toplevel) : frame passed by GUImanager to build GUI.
-        """
-
-        # Title the window
-        self.master.title('ZFISHER --- Nucleus Segmentation')
-
-        ###tk.Frame.__init__(self, master=self.master)
-
-        self.setup_canvas_window(master)
-        self.setup_controls_window(master)
-
-    def setup_canvas_window(self,master):
-        """
-        Creates the tkinter window that will display the MIP image and the nuclei segmentation polygons.
-        """
-        # Set the initial size of the main frame
-        master.geometry("1024x1022")  # Example size: width=800, height=600
-
-        # Vertical and horizontal scrollbars for canvas
-        vbar = AutoScrollbar(self.master, orient='vertical')
-        hbar = AutoScrollbar(self.master, orient='horizontal')
-        vbar.grid(row=0, column=1, rowspan=2, sticky='ns')
-        hbar.grid(row=2, column=0, sticky='we')
-
-        # Create canvas 
-        self.canvas = tk.Canvas(self.master, highlightthickness=0,
-                                xscrollcommand=hbar.set, yscrollcommand=vbar.set)
-        self.canvas.grid(row=0, column=0, sticky='nswe')
-        self.canvas.update()  # wait till canvas is created
-        vbar.configure(command=self.scroll_y)  # bind scrollbars to the canvas
-        hbar.configure(command=self.scroll_x)
-        # Make the canvas expandable
-        self.master.rowconfigure(0, weight=1)
-        self.master.columnconfigure(0, weight=1)
-
-        self.get_segmentation_mips()
-
-       # mip_tomask_list = os.listdir(os.path.join(self.processing_dir,self.f1_ntag,self.f1_cs[self.f1_reg_c],"MIP"))
-       # mip_tomask = os.path.join(self.mip_tomask_dir,mip_tomask_list[0])
-       # self.input_img_path = mip_tomask
-
-       # self.image = Image.open(self.input_img_path)  # open image
-       # self.image = self.normalize_image(self.image)
-
-       # self.width, self.height = self.image.size
-       # self.baseHeight = self.height
-       # self.baseWidth = self.width
-       # self.imscale = 1.0  # scale for the canvaas image
-       # self.scalefactor = 1.0
-       # self.delta = 1.3  # zoom magnitude
-        # Put image into container rectangle and use it to set proper coordinates to the image
-       # self.container = self.canvas.create_rectangle(0, 0, self.width, self.height, width=0)
-
-    def get_segmentation_mips(self):
-        """
-        Retrieve the MIP filepaths to be used for segmentation
-        """
-        # Verify paths before using them
-        f1_seg_c_dir = cfg.F1_C_MIP_DIR_DICT[cfg.F1_SEG_C]
-        f2_seg_c_dir = cfg.F2_C_MIP_DIR_DICT[cfg.F2_SEG_C]
-
-        f1_seg_c_file = os.listdir(f1_seg_c_dir)[0]
-        f2_seg_c_file = os.listdir(f2_seg_c_dir)[0]
-
-        self.f1_seg_c_filepath = os.path.join(f1_seg_c_dir,f1_seg_c_file)
-        self.f2_seg_c_filepath = os.path.join(f2_seg_c_dir,f2_seg_c_file)
-        
-        print(f"f1 seg path: {self.f1_seg_c_filepath}")
-        print(f"f2 seg path: {self.f2_seg_c_filepath}")
-
-
-
-    def setup_controls_window(self,master):
-            #MAKE CONTROL PANEL
-            self.control_window = tk.Toplevel(self.master)
-            self.control_window.title("Control Panel - Nucleus Segmentation")
-
-            self.list_label = tk.Label(self.control_window, text="-----Number of Nuclei:-----")
-            self.list_label.grid(row=1, column=1, columnspan=2)
-
-            self.count_label = tk.Label(self.control_window, text="0")
-            self.count_label.grid(row=2, column=1, columnspan=2)
-
-            self.spacer_label = tk.Label(self.control_window, text="------------------------------------")
-            self.spacer_label.grid(row=6, column=1, columnspan=2)  
-
-            self.mousepos_label = tk.Label(self.control_window, text="Mouse Position: (0000.00,0000.00)", font=("Courier"))
-            self.mousepos_label.grid(row=7, column=1, columnspan=2)
-            x_lab = 0
-            y_lab = 0
-            self.mousepos_label.config(text=f"Mouse Position: ({float(x_lab):07.2f}, {float(y_lab):07.2f})")
-            
-            self.finish_button = tk.Button(self.control_window, text="Finalize Nuclei Picking", command=self.finalize_nucpicking)
-            self.finish_button.grid(row=9, column=1, columnspan=2)     
-
-            self.ManPoly_toggle = tk.BooleanVar(value=False)
-            self.polydraw_toggle_checkbox = tk.Checkbutton(self.control_window, text="Manual Polygon", variable=self.ManPoly_toggle)
-            self.polydraw_toggle_checkbox.grid(row=10, column=1, columnspan=2) 
 
     def normalize_image(self,image):
         # Convert the image to a numpy array
