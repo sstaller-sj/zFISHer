@@ -59,6 +59,8 @@ OFFSET_X = None # in pixels
 OFFSET_Y = None # in pixels
 OFFSET_Z = None # in z-slices
 
+# Nuclei segmentation algorithm script path
+NUC_SEG_ALGO_PATH = "zFISHer/processing/segmentation/zFISHer_basic_nucseg.py"
 
 
 def set_file_paths(self):
