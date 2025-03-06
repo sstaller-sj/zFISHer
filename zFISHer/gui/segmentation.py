@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import filedialog
 import os
 from PIL import Image, ImageTk
 import zFISHer.config.config_manager as cfgmgr
@@ -8,6 +9,7 @@ import platform
 
 import zFISHer.utils.config as cfg
 import zFISHer.data.parameters as aparams
+import zFISHer.processing.normalize_img as norm
 
 """
 Takes the desired nucleus image and attempts to run segementation on image. The image is 
@@ -43,28 +45,11 @@ class SegmentationGUI(tk.Frame):
         self.load_canvas_mip(master)
         self.setup_window(master)
 
+       #self.segment_polygons()
+       #self.draw_polygons()
+        self.show_image(master)
         return
-        self.f1_ntag = cfgmgr.get_config_value("FILE_1_NAMETAG")
-        self.f2_ntag = cfgmgr.get_config_value("FILE_2_NAMETAG")
-        self.f1_channels = cfgmgr.get_config_value("FILE_2_NAMETAG")
-
-        self.f1_cs = cfgmgr.get_config_value("FILE_1_CHANNELS")
-        self.f2_cs = cfgmgr.get_config_value("FILE_2_CHANNELS")
-
-        self.processing_dir = cfgmgr.get_config_value("PROCESSING_DIR")
-        self.f1_ntag = cfgmgr.get_config_value("FILE_1_NAMETAG")
-        self.f2_ntag = cfgmgr.get_config_value("FILE_2_NAMETAG")
-
-        self.f1_reg_c = self.get_reg_channel(self.f1_cs)
-        self.f2_reg_c= self.get_reg_channel(self.f2_cs)
-
-        self.F1_base_path = os.listdir(os.path.join(os.path.join(self.processing_dir,self.f1_ntag,self.f1_cs[self.f1_reg_c],"MIP"))[0])
-        self.F2_base_path = os.listdir(os.path.join(os.path.join(self.processing_dir,self.f2_ntag,self.f2_cs[self.f2_reg_c],"MIP"))[0])
-
-        self.f1_zslices_dir = cfg.F1_C_ZSLICE_DIR_DICT[cfg.F1_REG_C]
-        self.f2_zslices_dir = cfg.F2_C_ZSLICE_DIR_DICT[cfg.F2_REG_C]
-
-
+  
         #--
         #GENERATE CONTOURS
         self.arr_nucleus_contours = None
@@ -162,8 +147,10 @@ class SegmentationGUI(tk.Frame):
 
         self.scrollview = [0,0]
 
+
     def load_canvas_mip(self,master):
         pass
+
 
     def setup_window(self, master):
         """
@@ -181,10 +168,12 @@ class SegmentationGUI(tk.Frame):
         self.setup_canvas_window(master)
         self.setup_controls_window(master)
 
+
     def setup_canvas_window(self,master):
         """
         Creates the tkinter window that will display the MIP image and the nuclei segmentation polygons.
         """
+
         # Set the initial size of the main frame
         master.geometry("1024x1022")  # Example size: width=800, height=600
 
@@ -205,41 +194,38 @@ class SegmentationGUI(tk.Frame):
         self.master.rowconfigure(0, weight=1)
         self.master.columnconfigure(0, weight=1)
 
-        self.get_segmentation_mips()
+        self.load_seg_mips_imgs()
 
-       # mip_tomask_list = os.listdir(os.path.join(self.processing_dir,self.f1_ntag,self.f1_cs[self.f1_reg_c],"MIP"))
-       # mip_tomask = os.path.join(self.mip_tomask_dir,mip_tomask_list[0])
-       # self.input_img_path = mip_tomask
 
-       # self.image = Image.open(self.input_img_path)  # open image
-       # self.image = self.normalize_image(self.image)
-
-       # self.width, self.height = self.image.size
-       # self.baseHeight = self.height
-       # self.baseWidth = self.width
-       # self.imscale = 1.0  # scale for the canvaas image
-       # self.scalefactor = 1.0
-       # self.delta = 1.3  # zoom magnitude
+        self.width, self.height = self.f1_seg_c_n.size
+        self.baseHeight = self.height
+        self.baseWidth = self.width
+        self.imscale = 1.0  # scale for the canvaas image
+        self.scalefactor = 1.0
+        self.delta = 1.3  # zoom magnitude
         # Put image into container rectangle and use it to set proper coordinates to the image
-       # self.container = self.canvas.create_rectangle(0, 0, self.width, self.height, width=0)
+        self.container = self.canvas.create_rectangle(0, 0, self.width, self.height, width=0)
 
-    def get_segmentation_mips(self):
+
+    def get_seg_mips_paths(self):
         """
         Retrieve the MIP filepaths to be used for segmentation
         """
+
         # Verify paths before using them
         f1_seg_c_dir = cfg.F1_C_MIP_DIR_DICT[cfg.F1_SEG_C]
         f2_seg_c_dir = cfg.F2_C_MIP_DIR_DICT[cfg.F2_SEG_C]
-
         f1_seg_c_file = os.listdir(f1_seg_c_dir)[0]
         f2_seg_c_file = os.listdir(f2_seg_c_dir)[0]
-
         self.f1_seg_c_filepath = os.path.join(f1_seg_c_dir,f1_seg_c_file)
         self.f2_seg_c_filepath = os.path.join(f2_seg_c_dir,f2_seg_c_file)
-        
-        print(f"f1 seg path: {self.f1_seg_c_filepath}")
-        print(f"f2 seg path: {self.f2_seg_c_filepath}")
+        return self.f1_seg_c_filepath,self.f2_seg_c_filepath
 
+
+    def load_seg_mips_imgs(self):
+        f1_seg_c_filepath, f2_seg_c_filepath = self.get_seg_mips_paths()
+        self.f1_seg_c_n = norm.normalize_mip_main(f1_seg_c_filepath)
+        self.f2_seg_c_n = norm.normalize_mip_main(f2_seg_c_filepath)
 
 
     def setup_controls_window(self,master):
@@ -269,6 +255,26 @@ class SegmentationGUI(tk.Frame):
             self.polydraw_toggle_checkbox = tk.Checkbutton(self.control_window, text="Manual Polygon", variable=self.ManPoly_toggle)
             self.polydraw_toggle_checkbox.grid(row=10, column=1, columnspan=2) 
 
+            self.seg_algo_header_l = tk.Label(self.control_window, text="Segmentation Algorithm:", font=("Helvetica", 16, "bold"))
+            self.seg_algo_header_l.grid(row = 12, column = 1)
+            
+            self.seg_algo_path_e = tk.Entry(self.control_window, width=50)
+            self.seg_algo_path_e.grid(row=12, column=2, sticky="ew", padx=10, pady=5)
+
+            self.seg_algo_path_button = tk.Button(self.control_window, text="Browse", command=self.open_seg_file_select)
+            self.seg_algo_path_button.grid(row=12, column=3, padx=10, pady=5)
+
+            self.seg_algo_path_e.insert(0, cfg.NUC_SEG_ALGO_PATH)  #set default algorithm path
+
+    def open_seg_file_select(self):
+        """
+        Update file 1 path entry widget with selected path name.
+        """
+        filepath = filedialog.askopenfilename()
+        self.seg_algo_path_e.delete(0, tk.END)
+        self.seg_algo_path_e.insert(0, filepath)
+        #self.set_seg_algo()
+
     def normalize_image(self,image):
         # Convert the image to a numpy array
         image_array = np.array(image).astype(np.float32)
@@ -289,6 +295,7 @@ class SegmentationGUI(tk.Frame):
         normalized_image = Image.fromarray(normalized_array)
         return normalized_image
     
+
     def motion(self, event):
         # Calculate the mouse position in the original image
         mouse_x = self.canvas.canvasx(event.x)
@@ -305,6 +312,7 @@ class SegmentationGUI(tk.Frame):
         #self.mousepos_label.config(text=f"Mouse Position: ({x_lab:03}, {y_lab:03})")
         #self.mousepos_label.config(text=f"Mouse Position: ({x_lab:6.2f}, {y_lab:6.2f})")
         self.mousepos_label.config(text=f"Mouse Position: ({float(x_lab):07.2f}, {float(y_lab):07.2f})")
+
 
     def finalize_nucpicking(self):
         self.update_nuc_count
@@ -412,7 +420,7 @@ class SegmentationGUI(tk.Frame):
             bbox[1] = bbox1[1]
             bbox[3] = bbox1[3]
         self.canvas.configure(scrollregion=bbox)  # set scroll region
-        self.update_nuc_count()
+        #self.update_nuc_count()
 
         print(f"bbox1 ({bbox1[0]},{bbox1[1]},{bbox1[2]},{bbox1[3]})")
         print(f"bbox2 ({bbox2[0]},{bbox2[1]},{bbox2[2]},{bbox2[3]})")
@@ -439,7 +447,7 @@ class SegmentationGUI(tk.Frame):
         if int(x2 - x1) > 0 and int(y2 - y1) > 0:  # show image if it in the visible area
             x = min(int(x2 / self.imscale), self.width)   # sometimes it is larger on 1 pixel...
             y = min(int(y2 / self.imscale), self.height)  # ...and sometimes not
-            image = self.image.crop((int(x1 / self.imscale), int(y1 / self.imscale), x, y))
+            image = self.f1_seg_c_n.crop((int(x1 / self.imscale), int(y1 / self.imscale), x, y))
             imagetk = ImageTk.PhotoImage(image.resize((int(x2 - x1), int(y2 - y1))))
             self.imageid = self.canvas.create_image(max(bbox2[0], bbox1[0]), max(bbox2[1], bbox1[1]),
                                             anchor='nw', image=imagetk)
@@ -1338,3 +1346,4 @@ class SegmentationGUI(tk.Frame):
         #cv2.waitKey(0)
         #cv2.destroyAllWindows
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#LOGIC TO LOAD SEGMENTATION ALGORITHM TO RUN IMAGES THROUGH
