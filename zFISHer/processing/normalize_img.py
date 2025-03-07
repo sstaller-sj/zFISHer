@@ -12,6 +12,7 @@ def normalize_mip_main(img_path):
     img_n = normalize_image_8b(img)
     return img_n
 
+
 def load_image(img_path):
     """
     Opens image file from given target path
