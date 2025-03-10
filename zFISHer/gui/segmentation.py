@@ -47,6 +47,7 @@ class SegmentationGUI(tk.Frame):
 
         self.segment_mips()
        #self.draw_polygons()
+        self.master.update()
         self.show_image(master)
         return
   
@@ -442,6 +443,9 @@ class SegmentationGUI(tk.Frame):
         self.grey_image_offset_x = bbox1[0] - bbox2[0]
         self.grey_image_offset_y = bbox1[1] - bbox2[1]       
 
+        print(f"bbox 1 {bbox1}")
+        print(f"bbox 2 {bbox2}")
+        print(f"grey offset {self.grey_image_offset_x,self.grey_image_offset_y}")
         print(f"x1,y1,x2,y2 {x1},{y1},{x2},{y2}")
         print(f"grey offset {self.grey_image_offset_x}, {self.grey_image_offset_y}")
         if int(x2 - x1) > 0 and int(y2 - y1) > 0:  # show image if it in the visible area
