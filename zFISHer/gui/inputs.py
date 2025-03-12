@@ -157,6 +157,10 @@ class FileInputGUI():
         self.f2_seg_c_var.trace_add("write", self.on_channel_select)
 
 
+        # FILE SEGMENTATION CHANNEL SELECTION
+        seg_c_algo_description = tk.Label(self.options_frame, text="Nuclei Segmentation Algorithm:")
+        seg_c_algo_description.grid(row=8, column=2, sticky="e", padx=10, pady=5)
+
     def on_channel_select(self, *args):
         """
         Update options widgets after user selects input file path.

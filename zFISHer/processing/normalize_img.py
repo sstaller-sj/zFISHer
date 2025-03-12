@@ -45,8 +45,6 @@ def normalize_image_8b(img):
     min_val = image_array.min()
     max_val = image_array.max()
     
-    print(f"MIN VAL {min_val}")
-    print(f"MAX VAL {max_val}")
     # Normalize the image to the range [0, 1]
     normalized_array = (image_array - min_val) / (max_val - min_val)
     

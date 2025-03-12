@@ -1058,7 +1058,6 @@ class PunctaPickGUI(tk.Frame):
                 break  # Stop searching after finding the first matching polygon
         return foundNucID, foundPolyID, foundPolyTextID
     def remove_ROI(self,event):
-        print(self.F1_ROI_dict)
         #NEED TO ADD IN LOGIC OF kp_remove
         selectedchannel = self.KP_rb_selection.get()
         channel = selectedchannel[3:]
