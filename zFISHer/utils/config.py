@@ -26,6 +26,8 @@ F2_C_MIP_DIR_DICT = {}
 F1_C_ZSLICE_DIR_DICT = {} # key channel name (string) : value is path (string)
 F2_C_ZSLICE_DIR_DICT = {}
 
+SEG_PROCESSING_DIR = None # segmentation folder to store analysis images
+
 # Input XYZ file paths 
 F1_PATH = None
 F2_PATH = None
@@ -61,11 +63,3 @@ OFFSET_Z = None # in z-slices
 
 # Nuclei segmentation algorithm script path
 NUC_SEG_ALGO_PATH = "zFISHer/processing/segmentation/zFISHer_basic_nucseg.py"
-
-
-def set_file_paths(self):
-    self._instance.base_dir = "/path/to/base/dir"
-    self._instance.output_dir = "/path/to/output"
-    cls._instance.processing_dir = "/path/to/processing"
-    cls._instance.logs_dir = "/path/to/logs"
-
