@@ -81,9 +81,7 @@ def registerXY(img_1, img_2):
     reg = reg.clip(min=0)
 
     offset = sr.get_matrix()[:2, 2]
-    print(f"Offset for XY registration: {offset}")
-    print(sr.get_matrix())
-
+    
     offset[0] = (-offset[0])
     offset[1] = (-offset[1])
 

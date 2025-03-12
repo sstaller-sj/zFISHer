@@ -1,34 +1,49 @@
+import os
+import numpy as np
+from PIL import Image
+
+import cv2
+
+import zFISHer.utils.config as cfg
 
 
 """
 Basic default zFISHer nuclei segmentation protocol using a watershed algorithm
 """
 
-print("WE IN THE SCRIPT")
 
-data = "passed and modified"
+def main(data: dict) -> dict:
+    file_num = data['file_#']
+    c = data['seg_c']
 
-def nucmask__init__(self):
-    self.arr_nucleus_contours = None    
-    
+    # Process file and generate coordinates
+    x1 = 1
+    y1 = 2
+    x2 = 3
+    y2 = 4
+    coordinates = [(x1, y1), (x2, y2)]  # Example
 
-    #Get Zslice from C0 of F1 for 
-    self.slice_ismask = self.get_masking_slice()
-    self.mip_tomask = self.get_MIP_tomask()
-    self.generate_nucleus_mask(self.slice_ismask, self.mip_tomask)
+    slice_ismask = get_masking_slice(file_num,c)
+    mip_tomask = get_MIP_tomask(file_num,c)
+    contours = generate_nucleus_mask(slice_ismask,mip_tomask)
+    return {'contours': contours}
 
-def get_MIP_tomask(self):
-    #self.mip_tomask_dir = os.path.join(self.processing_directory_folder,"FILE_1",self.p_MIP_directory,self.chanidstring)
-    #self.mip_tomask_dir = os.path.join(self.processing_directory_folder,"FILE_1","RAW_MIP",self.F1_DAPI_dir)
-    self.mip_tomask_dir = os.path.join(self.processing_dir,self.f1_ntag,self.f1_cs[self.f1_reg_c],"MIP")
 
-    mip_tomask_list = os.listdir(self.mip_tomask_dir)
-    mip_tomask = os.path.join(self.mip_tomask_dir,mip_tomask_list[0])
-    self.input_img_path = mip_tomask
+def get_MIP_tomask(file_num, c):
+    if file_num == 1:
+        mip_dir = cfg.F1_C_MIP_DIR_DICT[c]
+        mip_file = os.listdir(mip_dir)[0]  # Select the first file
+    elif file_num == 2:
+        mip_dir = cfg.F2_C_MIP_DIR_DICT[c]
+        mip_file = os.listdir(mip_dir)[0]
+    mip_tomask_path = os.path.join(mip_dir, mip_file)
+    return mip_tomask_path
 
-    return mip_tomask
 
-def slice_sort_key(self, filename):
+def slice_sort_key(filename):
+    """
+    Sorts the slices in ascending z order starting at 1.
+    """
     # Extract the number between "z" and "_.tif" in the filename
     start_index = filename.find('z') + 1
     end_index = filename.find('.tif')
@@ -36,41 +51,41 @@ def slice_sort_key(self, filename):
     # Convert the extracted number string to an integer
     return int(number_str)
     
-def get_masking_slice(self):
-    # Load the f1_slices into an array
-    slices = os.listdir(self.f1_zslices_dir)
-    sorted_slices = sorted(slices, key=self.slice_sort_key)
-    print(sorted_slices)
 
-    self.f1_zslices_sorted = []
-
-    for s in sorted_slices:
-        path = os.path.join(self.f1_zslices_dir,s)
-        sliceimage = Image.open(path)
-        print(s)
-        self.f1_zslices_sorted.append(sliceimage)
-        print(self.f1_zslices_sorted)
-
-    self.mid_slice_id = self.find_middle_slice(self.f1_zslices_sorted)
-    
-    slice_formask =f"{self.f1_ntag}_{cfg.F1_REG_C}_z{self.mid_slice_id}.tif"
-    slice_formask_path = os.path.join(self.f1_zslices_dir,slice_formask)
+def get_masking_slice(file_num, c):
+    if file_num == 1:
+        slices = os.listdir(cfg.F1_C_ZSLICE_DIR_DICT[c])
+        slice_dir = cfg.F1_C_ZSLICE_DIR_DICT[c]
+    elif file_num == 2:
+        slices = os.listdir(cfg.F2_C_ZSLICE_DIR_DICT[c])
+        slice_dir = cfg.F2_C_ZSLICE_DIR_DICT[c]
+    sorted_slices = sorted(slices, key=slice_sort_key)
+    mid_slice_idx = find_middle_slice(sorted_slices)
+    mid_slice_filename = sorted_slices[mid_slice_idx]  # Get the filename, not the index
+    mid_slice_path = os.path.join(slice_dir, mid_slice_filename)
+    sliceimage = Image.open(mid_slice_path)  # TODO IS THIS NEEDED?
+    slice_formask_path = mid_slice_path
     print(f"Slice used to mask: {slice_formask_path}")
     return slice_formask_path
 
-def find_middle_slice(self,stack):
+
+def find_middle_slice(stack):
     middle_slice = int(len(stack)/2)
     return middle_slice
 
-def generate_nucleus_mask(self,dapi_nucleus_mask_input,dna_mip_input):
+
+def generate_nucleus_mask(dapi_nucleus_mask_input,dna_mip_input):
+    print("MASKING MIP from mask slice")
+    print(dapi_nucleus_mask_input)
+    print(dna_mip_input)
     dapi_nucleus_base_img_in = cv2.imread(dapi_nucleus_mask_input, cv2.IMREAD_UNCHANGED)
     dapi_nucleus_base_img = dapi_nucleus_base_img_in * 255
 
-    cv2.imwrite(os.path.join(self.processing_dir, f"dapinucleusbaseimg.tif"), dapi_nucleus_base_img_in )
+    cv2.imwrite(os.path.join(cfg.SEG_PROCESSING_DIR, f"dapinucleusbaseimg.tif"), dapi_nucleus_base_img_in )
     
     dapi_nucleus_base_img_8bit = cv2.convertScaleAbs(dapi_nucleus_base_img_in, alpha=(255.0/65535.0))
 
-    cv2.imwrite(os.path.join(self.processing_dir, f"dapinucleusbaseimg2.tif"), dapi_nucleus_base_img_8bit )
+    cv2.imwrite(os.path.join(cfg.SEG_PROCESSING_DIR, f"dapinucleusbaseimg2.tif"), dapi_nucleus_base_img_8bit )
 
 
     dapi_nucleus_base_img = dapi_nucleus_base_img_8bit
@@ -89,11 +104,11 @@ def generate_nucleus_mask(self,dapi_nucleus_mask_input,dna_mip_input):
     masked_dna_img = cv2.bitwise_and(dna_mip_img, dna_mip_img, mask=nucleus_threshold_mask)
 
 
-    output_path = os.path.join(self.processing_dir, f"masked_dna_mip.tif")    
+    output_path = os.path.join(cfg.SEG_PROCESSING_DIR, f"masked_dna_mip.tif")    
     cv2.imwrite(output_path,masked_dna_img)
 
 
-    output_path = os.path.join(self.processing_dir, f"nucleus_threshold_img.tif")    
+    output_path = os.path.join(cfg.SEG_PROCESSING_DIR, f"nucleus_threshold_img.tif")    
     cv2.imwrite(output_path,nucleus_threshold_img)
 
     #NEW -DILATE 
@@ -108,8 +123,8 @@ def generate_nucleus_mask(self,dapi_nucleus_mask_input,dna_mip_input):
     contours, hierarchy = cv2.findContours(nucleus_threshold_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     contoured_dna_img = dna_mip_base.copy()
     cv2.drawContours(contoured_dna_img, contours, -1, (0,255,0), 2, cv2.LINE_AA)
-    print(list(contours))
-    print("CONTOURS LIST)")
+    #print(list(contours))
+    print("CONTOURS LIST")
 
     index = 1
     isolated_count = 0
@@ -178,11 +193,12 @@ def generate_nucleus_mask(self,dapi_nucleus_mask_input,dna_mip_input):
     arr_nucleus_contours = np.delete(arr_nucleus_contours,(0),axis=0)
 
     #Pass to DynData Class
-    self.arr_nucleus_contours = arr_nucleus_contours
+    final_arr_nucleus_contours = arr_nucleus_contours
     #dyn_data.arr_nucleus_contours = self.arr_nucleus_contours   
 
-    print(arr_nucleus_contours)
-    print(len(arr_nucleus_contours))
+    print(final_arr_nucleus_contours)
+    print(len(final_arr_nucleus_contours))
+    return final_arr_nucleus_contours
 
     #cell_pick_gui_main(arr_nucleus_contours)
     #---------------

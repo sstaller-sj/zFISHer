@@ -38,7 +38,6 @@ def slice_stack(filepath,f_num) -> None:
         ntag = cfg.F2_NTAG
         export_dir_dict = cfg.F2_C_ZSLICE_DIR_DICT
 
-    print(f"CLIST {c_list}")
     with ND2Reader(filepath) as nd2_file:
         nd2_file.iter_axes = 'z'
         for c in c_list:
