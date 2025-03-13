@@ -555,7 +555,34 @@ class SegmentationGUI(tk.Frame):
 
 
     def finalize_nucpicking(self):
-        pass
+        self.update_nuc_count
+        aparams.seg_nuc_count = self.nuccount
+        cfg.SEG_NUC_COUNT = self.nuccount
+
+        #Set Coordinates back to base
+        dx = -self.canvas.coords(self.container)[0]
+        dy = -self.canvas.coords(self.container)[1]
+        self.canvas.move('all', dx,dy)
+        self.canvas.scale('all', 0,0, 1/self.imscale, 1/self.imscale)
+
+        #updates polygons
+        polygon_ids = self.canvas.find_withtag('polygon')
+        self.polygons = []
+
+        nucnum = 1
+        for poly_id in polygon_ids:
+            coords = self.canvas.coords(poly_id)
+            self.polygons.append([nucnum]+ [coords])
+            print(coords)
+            nucnum += 1
+
+        aparams.nuc_polygons = self.polygons
+        cfg.SEG_NUC_POLYGONS = self.polygons
+
+        print("FINISHED NUC PICK")
+
+        self.switch()
+
 
 
     def _execute_segmentation_script(self, script_path: str, input_data: Dict[str, Any]) -> Dict[str, Any]:

@@ -63,3 +63,7 @@ OFFSET_Z = None # in z-slices
 
 # Nuclei segmentation algorithm script path
 NUC_SEG_ALGO_PATH = "zFISHer/processing/segmentation/zFISHer_basic_nucseg.py"
+
+# Nuclei segmentation finalization
+SEG_NUC_COUNT = None    # Number of segmented nuclei
+SEG_NUC_POLYGONS = []   # array contain [index, i, x, y] index is polygon id, i is coord index within a polygon id
