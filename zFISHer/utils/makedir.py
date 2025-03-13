@@ -68,3 +68,6 @@ def make_processing_directories():
          os.makedirs(dir, exist_ok=True)
     for dir in cfg.F2_C_MIP_DIR_DICT.values():
          os.makedirs(dir, exist_ok=True)
+
+    # Create processing segmentation directory
+    os.makedirs(cfg.SEG_PROCESSING_DIR, exist_ok=True)

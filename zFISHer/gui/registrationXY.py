@@ -64,9 +64,6 @@ class RegistrationXYGUI():
         self.F1_C0B_MIP_path = os.path.join(os.path.join(self.processing_dir,self.f1_ntag,self.f1_cs[self.f1_reg_c],"MIP"))
         self.F2_C0B_MIP_path = os.path.join(os.path.join(self.processing_dir,self.f2_ntag,self.f2_cs[self.f2_reg_c],"MIP"))
 
-        print(f"dapi1 = {self.F1_C0B_MIP_path}")
-        print(f"dapi2 = {self.F2_C0B_MIP_path}")
-
         #IMAGES h=2044 w= 2048
         self.F1_C0B_MIP = self.get_MIP_file(self.F1_C0B_MIP_path)
         self.F2_C0B_MIP = self.get_MIP_file(self.F2_C0B_MIP_path)
@@ -228,7 +225,6 @@ class RegistrationXYGUI():
 
     def setf2opac(self):
         newopac = float(self.opac_e_text.get())
-        print(newopac)
         self.opac = newopac
         self.toggle_channels()
 
@@ -236,7 +232,6 @@ class RegistrationXYGUI():
     def manualoffset(self):
         x = float(self.c_os_x_e_text.get())
         y = float(self.c_os_y_e_text.get())
-        print(f"{x},{y}")
 
         #The input x,y is in native image dimensions
         self.f2_offset_x = x / self.x_scaler
@@ -395,11 +390,11 @@ class RegistrationXYGUI():
 
         # Ensure the image is in the correct mode
         #if self.f1img.mode not in ("RGB", "RGBA"):
-        print("Converted F1 mode:", self.f1img.mode)
+
         self.f1img = self.f1img.convert("L")
-        print("Converted F1 mode:", self.f1img.mode)
+
         self.f1img = self.f1img.convert("RGBA")
-        print("Converted F1 mode:", self.f1img.mode)
+
 
         # Put F1 on canvas
         self.f1img.thumbnail((self.canvas.winfo_width(), self.canvas.winfo_height()))
@@ -472,8 +467,6 @@ class RegistrationXYGUI():
 
         self.f2_offset_x_scaled = self.relative_x * self.x_scaler
         self.f2_offset_y_scaled = self.relative_y * self.y_scaler       
-
-       # print (f"f1 - {f1_coords} ::: f2 - {f2_coords} ::: relative - {relative_x,relative_y}")
 
         self.c_os_x_e_text.set(f"{self.f2_offset_x_scaled:.{decimal_places}f}")
         self.c_os_y_e_text.set(f"{self.f2_offset_y_scaled:.{decimal_places}f}")
@@ -551,8 +544,6 @@ class RegistrationXYGUI():
         min_val = image_array.min()
         max_val = image_array.max()
         
-        print(f"MIN VAL {min_val}")
-        print(f"MAX VAL {max_val}")
         # Normalize the image to the range [0, 1]
         normalized_array = (image_array - min_val) / (max_val - min_val)
         
@@ -565,10 +556,8 @@ class RegistrationXYGUI():
     
 
     def metadata_processor(self):
-        print("METADATA PROCESSOR")
         #FILE1
         with ND2Reader(self.f1filepath) as nd2_file:
-            print(nd2_file.metadata)
             self.f1numchan = len(nd2_file.metadata['channels'])
             self.f1numslices = len(nd2_file)
             self.f1channels = nd2_file.metadata['channels']
@@ -577,7 +566,6 @@ class RegistrationXYGUI():
 
         #FILE2
         with ND2Reader(self.f2filepath) as nd2_file:
-            print(nd2_file.metadata)
             self.f2numchan = len(nd2_file.metadata['channels'])
             self.f2numslices = len(nd2_file)
             self.f2channels = nd2_file.metadata['channels']

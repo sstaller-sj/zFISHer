@@ -41,11 +41,11 @@ class ProcessingGUI():
         self.create_processing_directories()
         #Populate z-slice directories
         self.status_l.config(text="Slicing Z stack of all channels...")
-        self.master.update_idletasks()
+        self.master.update()
         self.create_z_slices()
         #Populate MIP directories
         self.status_l.config(text="Making MIPs of all channels...")
-        self.master.update_idletasks()
+        self.master.update()
         self.create_mips()
         #Finish processing
         self.status_l.config(text="Finished processing...")
@@ -134,6 +134,9 @@ class ProcessingGUI():
             cfg.F2_C_ZSLICE_DIR_DICT[c] = c_zslice_dir
             cfg.F2_C_MIP_DIR_DICT[c] = c_mip_dir
 
+        # Define segmentation processing folder
+            cfg.SEG_PROCESSING_DIR = os.path.join(cfg.PROCESSING_DIR,"SEGMENTATION")
+            
         mkdir.make_processing_directories()
 
     
