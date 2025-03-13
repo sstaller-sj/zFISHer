@@ -14,10 +14,13 @@ from zFISHer.gui.finish import FinishGUI
 from zFISHer.gui.logger import Logger
 from zFISHer import version
 
+
 class GuiManager:
     """
     Manager of swapping and initializing each GUI of the workflow.
     """
+
+
     def __init__(self):
         """
         Initialize the manager class and the root tk instance.

@@ -2,6 +2,7 @@ import tkinter as tk
 import os
 from PIL import Image, ImageTk
 import zFISHer.config.config_manager as cfgmgr
+import zFISHer.utils.config as cfg
 import zFISHer.data.parameters as aparams
 import cv2
 import numpy as np
@@ -103,7 +104,7 @@ class PunctaPickGUI(tk.Frame):
         self.f2_offset = [cfgmgr.get_config_value("X_OFFSET"), cfgmgr.get_config_value("Y_OFFSET")]
         #Get Polygon Coords
         self.polygons = aparams.nuc_polygons #[nucIndex,polyCoords] from Nuc Picking
-
+        self.polygons = cfg.SEG_NUC_POLYGONS
         #----------------------------------------------------#        
     def generate_MIP_dicts(self):
         # Load the file1 mips into its dictionary
@@ -1058,7 +1059,6 @@ class PunctaPickGUI(tk.Frame):
                 break  # Stop searching after finding the first matching polygon
         return foundNucID, foundPolyID, foundPolyTextID
     def remove_ROI(self,event):
-        print(self.F1_ROI_dict)
         #NEED TO ADD IN LOGIC OF kp_remove
         selectedchannel = self.KP_rb_selection.get()
         channel = selectedchannel[3:]

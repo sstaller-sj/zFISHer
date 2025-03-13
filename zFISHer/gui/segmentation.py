@@ -1,18 +1,28 @@
 import tkinter as tk
+from tkinter import filedialog
 import os
 from PIL import Image, ImageTk
 import zFISHer.config.config_manager as cfgmgr
 import cv2
 import numpy as np
 import platform
+from typing import Dict, Any, List, Tuple
+import importlib.util
 
 import zFISHer.utils.config as cfg
 import zFISHer.data.parameters as aparams
+import zFISHer.processing.normalize_img as norm
+
+"""
+Takes the desired nucleus image and attempts to run segementation on image. The image is 
+"""
 
 
 class AutoScrollbar(tk.Scrollbar):
-    ''' A scrollbar that hides itself if it's not needed.
-        Works only if you use the grid geometry manager '''
+    '''
+    A scrollbar that hides itself if it's not needed.
+        Works only if you use the grid geometry manager 
+    '''
     def set(self, lo, hi):
         if float(lo) <= 0.0 and float(hi) >= 1.0:
             self.grid_remove()
@@ -26,60 +36,53 @@ class AutoScrollbar(tk.Scrollbar):
     def place(self, **kw):
         raise tk.TclError('Cannot use place with this widget')
     
+
 class SegmentationGUI(tk.Frame):
-    def __init__(self, master, switch_to_new_gui, logger):
+
+    def __init__(self, master, switch_to_new_gui,logger):
+
         self.master = master
-        self.logger = logger
         self.switch = switch_to_new_gui  # Save the function
 
+        self.load_canvas_mip(master)
+        self.setup_window(master)
 
-        self.f1_ntag = cfgmgr.get_config_value("FILE_1_NAMETAG")
-        self.f2_ntag = cfgmgr.get_config_value("FILE_2_NAMETAG")
-        self.f1_channels = cfgmgr.get_config_value("FILE_2_NAMETAG")
+        contours_arr = self.segment_mips()
+        self.draw_init_polygons(contours_arr)
+        self.master.update()
+        self.show_image(master)
 
-        self.f1_cs = cfgmgr.get_config_value("FILE_1_CHANNELS")
-        self.f2_cs = cfgmgr.get_config_value("FILE_2_CHANNELS")
-
-        self.processing_dir = cfgmgr.get_config_value("PROCESSING_DIR")
-        self.f1_ntag = cfgmgr.get_config_value("FILE_1_NAMETAG")
-        self.f2_ntag = cfgmgr.get_config_value("FILE_2_NAMETAG")
-
-        self.f1_reg_c = self.get_reg_channel(self.f1_cs)
-        self.logger.log_message(f"Channel 1 registration channel: INDEX:{self.f1_reg_c} - NAME:{self.f1_cs[self.f1_reg_c]}")
-        self.f2_reg_c= self.get_reg_channel(self.f2_cs)
-        self.logger.log_message(f"Channel 2 registration channel: INDEX:{self.f2_reg_c} - NAME:{self.f2_cs[self.f2_reg_c]}")   
-
-        self.F1_base_path = os.listdir(os.path.join(os.path.join(self.processing_dir,self.f1_ntag,self.f1_cs[self.f1_reg_c],"MIP"))[0])
-        self.F2_base_path = os.listdir(os.path.join(os.path.join(self.processing_dir,self.f2_ntag,self.f2_cs[self.f2_reg_c],"MIP"))[0])
-
-        self.f1_zslices_dir = cfg.F1_C_ZSLICE_DIR_DICT[cfg.F1_REG_C]
-        self.f2_zslices_dir = cfg.F2_C_ZSLICE_DIR_DICT[cfg.F2_REG_C]
+        self.set_user_input_controls()
+        return
+  
 
 
-        #--
-        #GENERATE CONTOURS
-        self.arr_nucleus_contours = None
-        
-        self.nucmask__init__()
 
-        #PULL INPUT DATA
-        self.arr_nucleus_contours_coordinates = self.arr_nucleus_contours       #GET NUCLEUS CONTOUR DATA from first blob detector
-        self.input_img_path = os.path.join(self.processing_dir,self.f1_ntag,self.f1_cs[self.f1_reg_c],"MIP") #Path to pull drawn canvas image from
-        self.masked_mip = os.path.join(self.processing_dir,"masked_dna_mip.tif") #masked MIP reference file to generate new polygon in add_polygon
-
-        #Define polygons container to pass to DynData
-        self.polygons = []      #polgons container
-
-        self.manpolypoints = [] #x,y points container for manually drawn polygon
-
-        #Define nucleus counter
-        self.nuccount = 0
+    def load_canvas_mip(self,master):
+        pass
 
 
-        #Initialize TKINTER frame
-        tk.Frame.__init__(self, master=self.master)
+    def setup_window(self, master):
+        """
+        Builds the GUI window and populates with widgets.
 
+        Args:
+        master (tkinter.Toplevel) : frame passed by GUImanager to build GUI.
+        """
+
+        # Title the window
         self.master.title('ZFISHER --- Nucleus Segmentation')
+
+        ###tk.Frame.__init__(self, master=self.master)
+
+        self.setup_canvas_window(master)
+        self.setup_controls_window(master)
+
+
+    def setup_canvas_window(self,master):
+        """
+        Creates the tkinter window that will display the MIP image and the nuclei segmentation polygons.
+        """
 
         # Set the initial size of the main frame
         master.geometry("1024x1022")  # Example size: width=800, height=600
@@ -101,16 +104,10 @@ class SegmentationGUI(tk.Frame):
         self.master.rowconfigure(0, weight=1)
         self.master.columnconfigure(0, weight=1)
 
-        mip_tomask_list = os.listdir(os.path.join(self.processing_dir,self.f1_ntag,self.f1_cs[self.f1_reg_c],"MIP"))
-        mip_tomask = os.path.join(self.mip_tomask_dir,mip_tomask_list[0])
-        self.input_img_path = mip_tomask
+        self.load_seg_mips_imgs()
 
-        self.image = Image.open(self.input_img_path)  # open image
-        self.image = self.normalize_image(self.image)
 
-        self.width, self.height = self.image.size
-        print(self.width)
-        print(self.height)
+        self.width, self.height = self.f1_seg_c_n.size
         self.baseHeight = self.height
         self.baseWidth = self.width
         self.imscale = 1.0  # scale for the canvaas image
@@ -119,206 +116,81 @@ class SegmentationGUI(tk.Frame):
         # Put image into container rectangle and use it to set proper coordinates to the image
         self.container = self.canvas.create_rectangle(0, 0, self.width, self.height, width=0)
 
-        #---------------------------------------------------------------------------------------------------------------------------
-        #MAKE CONTROL PANEL
-        self.control_window = tk.Toplevel(self.master)
-        self.control_window.title("Control Panel - Nucleus Segmentation")
 
-        self.list_label = tk.Label(self.control_window, text="-----Number of Nuclei:-----")
-        self.list_label.grid(row=1, column=1, columnspan=2)
+    def get_seg_mips_paths(self):
+        """
+        Retrieve the MIP filepaths to be used for segmentation
+        """
 
-        self.count_label = tk.Label(self.control_window, text="0")
-        self.count_label.grid(row=2, column=1, columnspan=2)
-
-        self.spacer_label = tk.Label(self.control_window, text="------------------------------------")
-        self.spacer_label.grid(row=6, column=1, columnspan=2)  
-
-        self.mousepos_label = tk.Label(self.control_window, text="Mouse Position: (0000.00,0000.00)", font=("Courier"))
-        self.mousepos_label.grid(row=7, column=1, columnspan=2)
-        x_lab = 0
-        y_lab = 0
-        self.mousepos_label.config(text=f"Mouse Position: ({float(x_lab):07.2f}, {float(y_lab):07.2f})")
-        
-        self.finish_button = tk.Button(self.control_window, text="Finalize Nuclei Picking", command=self.finalize_nucpicking)
-        self.finish_button.grid(row=9, column=1, columnspan=2)     
-
-        self.ManPoly_toggle = tk.BooleanVar(value=False)
-        self.polydraw_toggle_checkbox = tk.Checkbutton(self.control_window, text="Manual Polygon", variable=self.ManPoly_toggle)
-        self.polydraw_toggle_checkbox.grid(row=10, column=1, columnspan=2) 
-        #---------------------------------------------------------------------------------------------------------------------------
-
-        #BINDINGS
-        self.canvas.bind('<Configure>', self.show_image)  # canvas is resized
-        self.canvas.bind("<Button-1>", self.remove_polygon) #click polygon to remove
-        self.canvas.bind("<Button-1>", self.man_poly_point, add='+') #add Vertex for manual polygon 
-
-        #ADD POLYGON (RIGHT MOUSE CLICK)
-        #OLD --> self.canvas.bind("<Button-2>", self.add_polygon) #click polygon to remove
-        if platform.system() == "Darwin":  # macOS
-            self.canvas.bind('<Button-2>', self.add_polygon) # right-click for macOS
-            self.canvas.bind('<Button-2>', self.man_poly_point_complete, add='+') # close manual polygon
-        elif platform.system() == "Linux":  # Linux
-            self.canvas.bind('<Button-3>', self.add_polygon) # right-click for Linux
-            self.canvas.bind('<Button-3>', self.man_poly_point_complete, add='+') # close manual polygon
-
-        #DRAG (WHEEL CLICK)
-        #OLD --> 
-        # self.canvas.bind('<ButtonPress-3>', self.move_from)
-        # self.canvas.bind('<B3-Motion>',     self.move_to)
-        if platform.system() == "Darwin":  # macOS
-             self.canvas.bind('<ButtonPress-3>', self.move_from)
-             self.canvas.bind('<B3-Motion>',     self.move_to)
-        elif platform.system() == "Linux":  # Linux
-             self.canvas.bind('<ButtonPress-2>', self.move_from)
-             self.canvas.bind('<B2-Motion>',     self.move_to)
-
-        #ZOOM (MOUSEWHEEL)
-        #OLD --> self.canvas.bind("<MouseWheel>", self.zoom)
-        if platform.system() == "Darwin":  # macOS
-            self.canvas.bind("<MouseWheel>", self.zoom)
-        elif platform.system() == "Linux":  # Linux
-            self.canvas.bind("<Button-4>", self.zoom)
-            self.canvas.bind("<Button-5>", self.zoom)
-
-        self.canvas.bind("<Motion>", self.motion)
-        self.add_p_event_processed = False
-
-        #Draw Nucleus POLYGONS --------------------------------------------------------------------------------------------#
-        self.draw_init_polygons()
-        self.show_image()
-
-    #--FUNCTIONS---------------------------------------------------
-        
-        self.zoom_level = 1.0  # Initial zoom level
-
-        self.scrollview = [0,0]
+        # Verify paths before using them
+        f1_seg_c_dir = cfg.F1_C_MIP_DIR_DICT[cfg.F1_SEG_C]
+        f2_seg_c_dir = cfg.F2_C_MIP_DIR_DICT[cfg.F2_SEG_C]
+        f1_seg_c_file = os.listdir(f1_seg_c_dir)[0]
+        f2_seg_c_file = os.listdir(f2_seg_c_dir)[0]
+        self.f1_seg_c_filepath = os.path.join(f1_seg_c_dir,f1_seg_c_file)
+        self.f2_seg_c_filepath = os.path.join(f2_seg_c_dir,f2_seg_c_file)
+        return self.f1_seg_c_filepath,self.f2_seg_c_filepath
 
 
-    def normalize_image(self,image):
-        # Convert the image to a numpy array
-        image_array = np.array(image).astype(np.float32)
-        
-        # Find the minimum and maximum pixel values
-        min_val = image_array.min()
-        max_val = image_array.max()
-        
-        print(f"MIN VAL {min_val}")
-        print(f"MAX VAL {max_val}")
-        # Normalize the image to the range [0, 1]
-        normalized_array = (image_array - min_val) / (max_val - min_val)
-        
-        # Optionally, scale to [0, 255] for 8-bit representation
-        normalized_array = (normalized_array * 255).astype(np.uint8)
-        
-        # Convert back to PIL Image
-        normalized_image = Image.fromarray(normalized_array)
-        return normalized_image
-    
-    def motion(self, event):
-        # Calculate the mouse position in the original image
-        mouse_x = self.canvas.canvasx(event.x)
-        mouse_y = self.canvas.canvasy(event.y)
-
-        #mouse_x = self.canvas.canvasx(event.x)/self.imscale
-        #mouse_y = self.canvas.canvasy(event.y)/self.imscale
-
-        #x_lab = "{:.2f}".format(mouse_x)
-        #y_lab = "{:.2f}".format(mouse_y)
-        x_lab = float(mouse_x)
-        y_lab = float(mouse_y)
-        #self.mousepos_label.config(text=f"Mouse Position: ({x_lab}, {y_lab})")
-        #self.mousepos_label.config(text=f"Mouse Position: ({x_lab:03}, {y_lab:03})")
-        #self.mousepos_label.config(text=f"Mouse Position: ({x_lab:6.2f}, {y_lab:6.2f})")
-        self.mousepos_label.config(text=f"Mouse Position: ({float(x_lab):07.2f}, {float(y_lab):07.2f})")
-
-    def finalize_nucpicking(self):
-        self.update_nuc_count
-        aparams.seg_nuc_count = self.nuccount
-
-        
-        #Set Coordinates back to base
-        print(self.canvas.coords(self.container))
-        print(self.bbox)
+    def load_seg_mips_imgs(self):
+        f1_seg_c_filepath, f2_seg_c_filepath = self.get_seg_mips_paths()
+        self.f1_seg_c_n = norm.normalize_mip_main(f1_seg_c_filepath)
+        self.f2_seg_c_n = norm.normalize_mip_main(f2_seg_c_filepath)
 
 
-        dx = -self.canvas.coords(self.container)[0]
-        dy = -self.canvas.coords(self.container)[1]
-        self.canvas.move('all', dx,dy)
+    def setup_controls_window(self,master):
+            #MAKE CONTROL PANEL
+            self.control_window = tk.Toplevel(self.master)
+            self.control_window.title("Control Panel - Nucleus Segmentation")
 
-        #sbbox = self.canvas.bbox(self.container)
-        #swidth = sbbox[2] - sbbox[0]  # Calculate width
-        #sheight = sbbox[3] - sbbox[1]  # Calculate height
+            self.list_label = tk.Label(self.control_window, text="-----Number of Nuclei:-----")
+            self.list_label.grid(row=1, column=1, columnspan=2)
 
-        self.canvas.scale('all', 0,0, 1/self.imscale, 1/self.imscale)
-        #self.show_image()
+            self.count_label = tk.Label(self.control_window, text="0")
+            self.count_label.grid(row=2, column=1, columnspan=2)
 
-        #updates polygons
-        polygon_ids = self.canvas.find_withtag('polygon')
+            self.spacer_label = tk.Label(self.control_window, text="------------------------------------")
+            self.spacer_label.grid(row=6, column=1, columnspan=2)  
 
-        self.polygons = []
+            self.mousepos_label = tk.Label(self.control_window, text="Mouse Position: (0000.00,0000.00)", font=("Courier"))
+            self.mousepos_label.grid(row=7, column=1, columnspan=2)
+            x_lab = 0
+            y_lab = 0
+            self.mousepos_label.config(text=f"Mouse Position: ({float(x_lab):07.2f}, {float(y_lab):07.2f})")
+            
+            self.finish_button = tk.Button(self.control_window, text="Finalize Nuclei Picking", command=self.finalize_nucpicking)
+            self.finish_button.grid(row=9, column=1, columnspan=2)     
 
-        nucnum = 1
-        for poly_id in polygon_ids:
-            coords = self.canvas.coords(poly_id)
-            self.polygons.append([nucnum]+ [coords])
-            print(coords)
-            nucnum += 1
+            self.ManPoly_toggle = tk.BooleanVar(value=False)
+            self.polydraw_toggle_checkbox = tk.Checkbutton(self.control_window, text="Manual Polygon", variable=self.ManPoly_toggle)
+            self.polydraw_toggle_checkbox.grid(row=10, column=1, columnspan=2) 
 
+            self.seg_algo_header_l = tk.Label(self.control_window, text="Segmentation Algorithm:", font=("Helvetica", 16, "bold"))
+            self.seg_algo_header_l.grid(row = 12, column = 1)
+            
+            self.seg_algo_path_e = tk.Entry(self.control_window, width=50)
+            self.seg_algo_path_e.grid(row=12, column=2, sticky="ew", padx=10, pady=5)
 
-        #nucpoly_output_array = [[row[0], self.canvas.coords(row[1])] for row in self.polygons]
-        #dyn_data.nucpolygons = nucpoly_output_array
-        aparams.nuc_polygons = self.polygons
-       # print("ROW 1")
-       # print(dyn_data.nucpolygons[0])
+            self.seg_algo_path_button = tk.Button(self.control_window, text="Browse", command=self.open_seg_file_select)
+            self.seg_algo_path_button.grid(row=12, column=3, padx=10, pady=5)
 
-        print("FINISHED NUC PICK")
-        #self.master.destroy()
-        self.switch()
-        #mainapp.toROIpick()
-        
+            self.seg_algo_path_e.insert(0, cfg.NUC_SEG_ALGO_PATH)  #set default algorithm path
 
-    def update_nuc_count(self):
-        self.nuccount = len(self.polygons)
-        self.count_label.config(text=self.nuccount)
-    
-   
-    #DRAG (CLICK AND DRAG SCREEN)---------------------------------------------------------------------#
-    def move_from(self, event):
-        ''' Remember previous coordinates for scrolling with the mouse '''
-        self.canvas.scan_mark(event.x, event.y)
-    def move_to(self, event):
-        ''' Drag (move) canvas to the new position '''
-        self.canvas.scan_dragto(event.x, event.y, gain=1)
-        self.show_image()  # redraw the image
-    
-    #ZOOM---------------------------------------------------------------------------------------------#
-    def zoom(self, event):
-        print("scrolling")
-        ''' Zoom with mouse wheel '''
-        x = self.canvas.canvasx(event.x)
-        y = self.canvas.canvasy(event.y)
-        bbox = self.canvas.bbox(self.container)  # get image area
-        if bbox[0] < x < bbox[2] and bbox[1] < y < bbox[3]: pass  # Ok! Inside the image
-        else: return  # zoom only inside image area
-        scale = 1.0
-        # Respond to Linux (event.num) or Windows (event.delta) wheel event
-        if event.num == 5 or event.delta > 0:  # scroll down
-            print("down)")
-            i = min(self.width, self.height)
-            if int(i * self.imscale) < 30: return  # image is less than 30 pixels
-            self.imscale /= self.delta
-            scale        /= self.delta
-        if event.num == 4 or event.delta < 0:  # scroll up
-            print("up")
-            i = min(self.canvas.winfo_width(), self.canvas.winfo_height())
-            if i < self.imscale: return  # 1 pixel is bigger than the visible area
-            self.imscale *= self.delta
-            scale        *= self.delta
+            self.remove_all_button = tk.Button(self.control_window, text="Remove All Polygons", command=self.remove_all_polygons)
+            self.remove_all_button.grid(row=13, column=3, padx=10, pady=5)
 
-        print(self.imscale)
-        self.canvas.scale('all', x, y, scale, scale)  # rescale all canvas objects
-        self.show_image()
-    #-------------------------------------------------------------------------------------------------#
+            self.autosegment_button = tk.Button(self.control_window, text="Autosegment Image", command=self.auto_segment_polygons)
+            self.autosegment_button.grid(row=14, column=3, padx=10, pady=5)
+
+    def open_seg_file_select(self):
+        """
+        Update file 1 path entry widget with selected path name.
+        """
+        filepath = filedialog.askopenfilename()
+        self.seg_algo_path_e.delete(0, tk.END)
+        self.seg_algo_path_e.insert(0, filepath)
+        #self.set_seg_algo()
+
     def show_image(self, event=None):
         ''' Show image on the Canvas '''
         bbox1 = self.canvas.bbox(self.container)  # get image area
@@ -337,11 +209,7 @@ class SegmentationGUI(tk.Frame):
             bbox[1] = bbox1[1]
             bbox[3] = bbox1[3]
         self.canvas.configure(scrollregion=bbox)  # set scroll region
-        self.update_nuc_count()
-
-        print(f"bbox1 ({bbox1[0]},{bbox1[1]},{bbox1[2]},{bbox1[3]})")
-        print(f"bbox2 ({bbox2[0]},{bbox2[1]},{bbox2[2]},{bbox2[3]})")
-        print(f"bbox ({bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]})")
+        #self.update_nuc_count()
         # Store bbox1 for later use
         self.bbox1 = bbox1
 
@@ -359,23 +227,69 @@ class SegmentationGUI(tk.Frame):
         self.grey_image_offset_x = bbox1[0] - bbox2[0]
         self.grey_image_offset_y = bbox1[1] - bbox2[1]       
 
-        print(f"x1,y1,x2,y2 {x1},{y1},{x2},{y2}")
-        print(f"grey offset {self.grey_image_offset_x}, {self.grey_image_offset_y}")
         if int(x2 - x1) > 0 and int(y2 - y1) > 0:  # show image if it in the visible area
             x = min(int(x2 / self.imscale), self.width)   # sometimes it is larger on 1 pixel...
             y = min(int(y2 / self.imscale), self.height)  # ...and sometimes not
-            image = self.image.crop((int(x1 / self.imscale), int(y1 / self.imscale), x, y))
+            image = self.f1_seg_c_n.crop((int(x1 / self.imscale), int(y1 / self.imscale), x, y))
             imagetk = ImageTk.PhotoImage(image.resize((int(x2 - x1), int(y2 - y1))))
             self.imageid = self.canvas.create_image(max(bbox2[0], bbox1[0]), max(bbox2[1], bbox1[1]),
                                             anchor='nw', image=imagetk)
             self.bgimage= self.canvas.lower(self.imageid)  # set image into background
             self.canvas.imagetk = imagetk  # keep an extra reference to prevent garbage-collection
-        print(self.canvas.coords(self.container))
-    def draw_init_polygons(self):
+
+    def reset_canvas(self):
+        """Reset the image to its initial state"""
+        # Delete all existing canvas items
+        self.canvas.delete("all")
+        
+        # Reset scroll region to initial state
+        self.canvas.configure(scrollregion=(0, 0, self.width, self.height))
+        
+        # Clear any stored polygons or overlays (assuming these exist from your previous question)
+        if hasattr(self, 'polygons'):
+            self.polygons.clear()
+        
+        # Reset scale and position variables to initial values
+        self.imscale = 1.0  # Assuming 1.0 is your initial scale
+        self.si_x1 = 0
+        self.si_y1 = 0
+        self.si_x2 = self.width
+        self.si_y2 = self.height
+        self.grey_image_offset_x = 0
+        self.grey_image_offset_y = 0
+        
+        # Recreate the initial image
+        initial_image = self.f1_seg_c_n.crop((0, 0, self.width, self.height))
+        imagetk = ImageTk.PhotoImage(initial_image)
+        self.imageid = self.canvas.create_image(0, 0, anchor='nw', image=imagetk)
+        self.bgimage = self.canvas.lower(self.imageid)
+        self.canvas.imagetk = imagetk  # Keep reference to prevent garbage collection
+        
+        # Store initial bbox
+        self.bbox1 = (1, 1, self.width - 1, self.height - 1)
+
+        # Optional: Reset container if it exists
+        if hasattr(self, 'container'):
+            self.container = self.canvas.create_rectangle(0, 0, self.width, self.height, 
+                                                        width=0, fill="")
+    #######################################################
+    ##############_POLYGON-RELATED_FUNCTIONS_##############
+    
+    def auto_segment_polygons(self):
+        contours = self.segment_mips()
+        self.reset_canvas()
+        self.draw_init_polygons(contours)
+    
+    def draw_init_polygons(self,contours_arr):
+        """
+        When GUI initializes, this runs the onboard nuclei segmentation algorithm
+        and draws the polygon outputs.
+        """
+        self.polygons = []
         prev_column_value = None
         coordinates = []
         cell_index_table = [0, 0]
-        for row in self.arr_nucleus_contours_coordinates:
+        for row in contours_arr:
             #print(self.arr_nucleus_contours_coordinates)
             if prev_column_value is None or row[0] == prev_column_value:
                 temp_array = row[2:]
@@ -418,16 +332,31 @@ class SegmentationGUI(tk.Frame):
         self.polygons = temp_polygons
         self.update_nuc_count()
 
-
+    def add_polygon(self):
+        pass
+    def remove_polygon(self):
+        pass
+    def man_poly_point(self):
+        pass
+    def man_poly_point_complete(self):
+        pass
+    def update_nuc_count(self):
+        """
+        Updates GUI polygon count label on the control window.
+        """
+        self.nuccount = len(self.polygons)
+        self.count_label.config(text=self.nuccount)
+    def display_index_on_polygon(self, polygon, index):
+        coords = self.canvas.coords(polygon)
+        x_coords = [int(coords[i]) for i in range(0, len(coords), 2)]
+        y_coords = [int(coords[i]) for i in range(1, len(coords), 2)]
+        x_center = sum(x_coords) // len(x_coords)  # Using integer division
+        y_center = sum(y_coords) // len(y_coords)  # Using integer division
+        text_item = self.canvas.create_text(x_center, y_center, text=str(index), font=('Arial', 12), fill='red')
+        return text_item
     def draw_polygon(self, coordinates, index):
-
-
         index = int(index)
         self.polygons = sorted(self.polygons, key=lambda x: x[0])
-
-
-
-
 
         scaled_coordinates = [coord * 1 for coord in coordinates]
         #print(scaled_coordinates)
@@ -487,779 +416,205 @@ class SegmentationGUI(tk.Frame):
         self.canvas.tag_bind(polygon, '<B1-Motion>', lambda event: "break")
         self.canvas.tag_bind(polygon, '<Enter>', lambda event, p=polygon: self.highlight_polygon(p))
         self.canvas.tag_bind(polygon, '<Leave>', lambda event, p=polygon: self.unhighlight_polygon(p))
-    def display_index_on_polygon(self, polygon, index):
-        coords = self.canvas.coords(polygon)
-        x_coords = [int(coords[i]) for i in range(0, len(coords), 2)]
-        y_coords = [int(coords[i]) for i in range(1, len(coords), 2)]
-        x_center = sum(x_coords) // len(x_coords)  # Using integer division
-        y_center = sum(y_coords) // len(y_coords)  # Using integer division
-        text_item = self.canvas.create_text(x_center, y_center, text=str(index), font=('Arial', 12), fill='red')
-        return text_item
-
-    def remove_polygon(self,event):
-        if self.ManPoly_toggle.get() == True: return
-        x = self.canvas.canvasx(event.x)
-        y = self.canvas.canvasy(event.y) 
-        item = self.canvas.find_closest(x, y)
-        if item and item[0] in (polygon[1] for polygon in self.polygons):
-            for polygon_index, (index, p, ilabel) in enumerate(self.polygons):
-                if p == item[0]:
-                    print(f"Deleted polygon {index}")
-                    self.canvas.delete(ilabel)
-                    self.canvas.delete(p)  
-                    print(f"polylenb {len(self.polygons)}")
-                    del self.polygons[polygon_index]
-                    print(f"polylena {len(self.polygons)}")
-                    
-                    for row in self.polygons:
-                        print(row)
-                    break  # Break the loop after finding the polygon to delete
-        if item and item[0] in (polygon[2] for polygon in self.polygons):
-            for polygon_index, (index, p, ilabel) in enumerate(self.polygons):
-                if ilabel == item[0]:
-                    print(f"Deleted polygon {index}")
-                    self.canvas.delete(ilabel)
-                    self.canvas.delete(p)  
-                    print(f"polylenb {len(self.polygons)}")
-                    del self.polygons[polygon_index]
-                    print(f"polylena {len(self.polygons)}")
-                    for row in self.polygons:
-                        print(row)
-                    break  # Break the loop after finding the polygon to delete
-        self.update_nuc_count()
-
-    def add_polygon(self, event):
-        if self.ManPoly_toggle.get() == True: return
-        mousex = self.canvas.canvasx(event.x)
-        mousey = self.canvas.canvasy(event.y) 
-        maskedmip = cv2.imread(self.masked_mip, cv2.IMREAD_GRAYSCALE)
-        crop_width, crop_height = 300, 300  # Crop pic size
-
-        scropx1 = max(0, int(mousex - crop_width * self.imscale // 2)) 
-        scropy1 = max(0, int(mousey - crop_height * self.imscale // 2))
-        scropx2 = min(maskedmip.shape[1], int(mousex + crop_width * self.imscale // 2))
-        scropy2 = min(maskedmip.shape[0], int(mousey + crop_height * self.imscale // 2))
-
-        print(f"six1_ {self.si_x1},{self.si_y1}")
-        smousex = event.x_root - self.canvas.winfo_rootx()
-        smousey = event.y_root - self.canvas.winfo_rooty()
-
-
-
-        bbcoords = self.canvas.coords(self.container)
-
-        if  self.imscale == 1.0:
-            print("NO ZOOM")
-            smousex = smousex*1/self.imscale + (max(bbcoords[0],self.si_x1))
-            smousey = smousey*1/self.imscale + (max(self.grey_image_offset_y,self.si_y1))
-        elif self.imscale > 1.0:
-            print("ZOOMED IN")
-            smousex = smousex*1/self.imscale + (max(self.grey_image_offset_x,self.si_x1*1/self.imscale))
-            smousey = smousey*1/self.imscale + (max(self.grey_image_offset_y,self.si_y1*1/self.imscale))
-        elif self.imscale < 1.0:
-            print("ZOOMED OUT")
-            smousex = ((smousex - max(0,self.grey_image_offset_x))*1/self.imscale) + self.si_x1*1/self.imscale
-            smousey = ((smousey - max(0,self.grey_image_offset_y))*1/self.imscale) + self.si_y1*1/self.imscale
-
-
-        socropx1 = max(0, int(smousex - (crop_width // 2))) 
-        socropy1 = max(0, int(smousey - (crop_height // 2)))
-        socropx2 = min(maskedmip.shape[0], int(smousex  + (crop_width // 2)))
-        socropy2 = min(maskedmip.shape[1], int(smousey  + (crop_height // 2)))
-
-        print(f"imscale {self.imscale}")
-        print(f"grey offset {self.grey_image_offset_x}, {self.grey_image_offset_y}")
-        print(f"mousepos {mousex},{mousey}")
-        print(f"smousepos {smousex},{smousey}")
-        print(f"scrop_ {scropx1},{scropy1},{scropx2},{scropy2}")
-        print(f"socrop {socropx1},{socropy1},{socropx2},{socropy2}")
-        print(f"Canvas position: x={event.x}, y={event.y}")
-        print(f"Screen position: x={event.x_root}, y={event.y_root}")
-        print(f"six1_{self.si_x1},{self.si_y1}")
-        print(f"bbox {self.canvas.coords(self.container)}")
-        canvas_position= [event.x,event.y]
-        screen_position= [event.x_root, event.y_root]
-
-       # self.canvas.create_rectangle(scropx1,scropy1,scropx2,scropy2, fill="", outline="white")
-
-        cropped_image = maskedmip[socropy1:socropy2, socropx1:socropx2]
-
-            #Save the cropped image
-        print("cropped")
-        cropfile_path = os.path.join(setup.processing_directory_folder,"cropchunk.tif")
-        cv2.imwrite(cropfile_path, cropped_image) 
-
-
-
-        #Trace the cropped image
-        cropfile= cv2.imread(cropfile_path, cv2.IMREAD_GRAYSCALE)
-        contours, hierarchy = cv2.findContours(cropfile, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        #print(contours)
-        contoured_cropfile = cropfile.copy()
-        cv2.drawContours(contoured_cropfile, contours, -1, (0,255,0), 2, cv2.LINE_AA)
-
-        cont_cropfile_path = os.path.join(setup.processing_directory_folder,"contour_cropchunk.tif")
-        cv2.imwrite(cont_cropfile_path, contoured_cropfile)
-
-        index = 1
-        isolated_count = 0
-        cluster_count = 0
-
-        arr_nucleus_contours = np.empty([1,4])
-
-        for cntr in contours:
-            epsilon = 0.001 * cv2.arcLength(cntr, True)
-            approx = cv2.approxPolyDP(cntr, epsilon, True)
-            n = approx.ravel() 
-            i = 0
-            for j in n : 
-                if(i % 2 == 0): 
-                    x = n[i]  
-                    y = n[i + 1] 
-                    #print(f"---{x},{y}")
-                    #Generate contours cooridinates array to pass into tkinter visualization
-                    arr_nucleus_contours = np.vstack((arr_nucleus_contours , [index,i,x,y]))
-                i += 1
-            index += 1
-        arr_nucleus_contours = np.delete(arr_nucleus_contours,(0),axis=0)
-
-        #print(len(arr_nucleus_contours))
-        print("_________________________")
-        if len(arr_nucleus_contours) <=0: 
-            print("no contours found")
-            self.add_p_event_processed = False
-            return
-        else: 
-
-            if  self.imscale == 1.0:
-                print("NO ZOOM")
-                xo = scropx1
-                yo = scropy1
-                ofx = 0
-                ofy = 0
-            elif self.imscale > 1.0:
-                print("ZOOMED IN")
-
-                cmousex = self.canvas.canvasx(event.x)
-                cmousey = self.canvas.canvasy(event.y)
-                xo = int(cmousex - crop_width * self.imscale // 2)
-                yo = int(cmousey - crop_height * self.imscale // 2)
-
-                #self.canvas.create_oval(xo-10,yo-10,xo+10,yo+10, fill="", outline="white")
-
-                
-                ofx = 0
-                ofy = 0
-
-                bbcoords = self.canvas.coords(self.container)
-                print (f"cmouse {cmousex},  -->{cmousex - crop_width*self.imscale // 2 }")
-
-                if bbcoords[0]<0 : 
-                    if (cmousex - crop_width*self.imscale // 2) < bbcoords[0]:
-                        print("lilx")
-                        ofx = (bbcoords[0])- (cmousex - crop_width*self.imscale // 2) 
-                if bbcoords[1]<0 : 
-                    print((cmousey - crop_height*self.imscale // 2))
-                    if (cmousey - crop_height*self.imscale // 2) < bbcoords[1]:
-                        print("lily")
-                        ofy = (bbcoords[1]) - (cmousey - crop_height*self.imscale // 2) 
-
-
-            elif self.imscale < 1.0:
-                print("ZOOMED OUT")
-                cmousex = self.canvas.canvasx(event.x)
-                cmousey = self.canvas.canvasy(event.y)
-                xo = int(cmousex - crop_width * self.imscale // 2)
-                yo = int(cmousey - crop_height * self.imscale // 2)
-
-              #  self.canvas.create_oval(xo-10,yo-10,xo+10,yo+10, fill="", outline="white")
-
-                
-                ofx = 0
-                ofy = 0
-
-                bbcoords = self.canvas.coords(self.container)
-                print (f"cmouse {cmousex},  -->{cmousex - crop_width*self.imscale // 2 }")
-                if bbcoords[0]>0 : 
-                    if cmousex - crop_width*self.imscale // 2 < bbcoords[0]:
-                        print("bigginx")
-                        ofx = (bbcoords[0]) - (cmousex - crop_width*self.imscale // 2) 
-                if bbcoords[1]>0 : 
-                    if cmousey - crop_height*self.imscale // 2 < bbcoords[1]:
-                        print("bigginy")
-                        ofy = (bbcoords[1]) - (cmousey - crop_height*self.imscale // 2) 
-
-
-
-                
-            for row in arr_nucleus_contours:
-                row[2] = row[2]*self.imscale + xo + ofx
-                row[3] = row[3]*self.imscale + yo + ofy
-
-
-
-            if len(arr_nucleus_contours) <= 0: 
-                print("No contours")
-                self.add_p_event_processed = False
-                return
-            else:
-                self.draw_added_polygons(arr_nucleus_contours)
-
-    def old_add_polygon(self, event):
-        mousex = self.canvas.canvasx(event.x)
-        mousey = self.canvas.canvasy(event.y) 
-        maskedmip = cv2.imread(self.masked_mip, cv2.IMREAD_GRAYSCALE)
-        crop_width, crop_height = 200, 200  # Crop pic size
-
-        scropx1 = max(0, int(mousex - crop_width * self.imscale // 2)) 
-        scropy1 = max(0, int(mousey - crop_height * self.imscale // 2))
-        scropx2 = min(maskedmip.shape[1], int(mousex + crop_width * self.imscale // 2))
-        scropy2 = min(maskedmip.shape[0], int(mousey + crop_height * self.imscale // 2))
-
-        print(f"six1_ {self.si_x1},{self.si_y1}")
-        smousex = event.x_root - self.canvas.winfo_rootx()
-        smousey = event.y_root - self.canvas.winfo_rooty()
-
-
-
-
-
-        if  self.imscale == 1.0:
-            print("NO ZOOM")
-            smousex = smousex*1/self.imscale + (max(self.grey_image_offset_x,self.si_x1))
-            smousey = smousey*1/self.imscale + (max(self.grey_image_offset_y,self.si_y1))
-        elif self.imscale > 1.0:
-            print("ZOOMED IN")
-            smousex = smousex*1/self.imscale + (max(self.grey_image_offset_x,self.si_x1*1/self.imscale))
-            smousey = smousey*1/self.imscale + (max(self.grey_image_offset_y,self.si_y1*1/self.imscale))
-        elif self.imscale < 1.0:
-            print("ZOOMED OUT")
-            smousex = ((smousex - max(0,self.grey_image_offset_x))*1/self.imscale) + self.si_x1*1/self.imscale
-            smousey = ((smousey - max(0,self.grey_image_offset_y))*1/self.imscale) + self.si_y1*1/self.imscale
-
-
-        socropx1 = max(0, int(smousex - (crop_width // 2))) 
-        socropy1 = max(0, int(smousey - (crop_height // 2)))
-        socropx2 = min(maskedmip.shape[0], int(smousex  + (crop_width // 2)))
-        socropy2 = min(maskedmip.shape[1], int(smousey  + (crop_height // 2)))
-
-        print(f"imscale {self.imscale}")
-        print(f"grey offset {self.grey_image_offset_x}, {self.grey_image_offset_y}")
-        print(f"mousepos {mousex},{mousey}")
-        print(f"smousepos {smousex},{smousey}")
-        print(f"scrop_ {scropx1},{scropy1},{scropx2},{scropy2}")
-        print(f"socrop {socropx1},{socropy1},{socropx2},{socropy2}")
-        print(f"Canvas position: x={event.x}, y={event.y}")
-        print(f"Screen position: x={event.x_root}, y={event.y_root}")
-        canvas_position= [event.x,event.y]
-        screen_position= [event.x_root, event.y_root]
-        self.canvas.create_rectangle(scropx1,scropy1,scropx2,scropy2, fill="", outline="white")
-
-        cropped_image = maskedmip[socropy1:socropy2, socropx1:socropx2]
-
-            #Save the cropped image
-        print("cropped")
-        cropfile_path = os.path.join(setup.processing_directory_folder,"cropchunk.tif")
-        cv2.imwrite(cropfile_path, cropped_image) 
-
-
-
-        #Trace the cropped image
-        cropfile= cv2.imread(cropfile_path, cv2.IMREAD_GRAYSCALE)
-        contours, hierarchy = cv2.findContours(cropfile, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        #print(contours)
-        contoured_cropfile = cropfile.copy()
-        cv2.drawContours(contoured_cropfile, contours, -1, (0,255,0), 2, cv2.LINE_AA)
-
-        cont_cropfile_path = os.path.join(setup.processing_directory_folder,"contour_cropchunk.tif")
-        cv2.imwrite(cont_cropfile_path, contoured_cropfile)
-
-        index = 1
-        isolated_count = 0
-        cluster_count = 0
-
-        arr_nucleus_contours = np.empty([1,4])
-
-        for cntr in contours:
-            epsilon = 0.001 * cv2.arcLength(cntr, True)
-            approx = cv2.approxPolyDP(cntr, epsilon, True)
-            n = approx.ravel() 
-            i = 0
-            for j in n : 
-                if(i % 2 == 0): 
-                    x = n[i]  + scropx1
-                    y = n[i + 1]  + scropy1
-                    #print(f"---{x},{y}")
-                    #Generate contours cooridinates array to pass into tkinter visualization
-                    arr_nucleus_contours = np.vstack((arr_nucleus_contours , [index,i,x,y]))
-                i += 1
-            index += 1
-        arr_nucleus_contours = np.delete(arr_nucleus_contours,(0),axis=0)
-
-        #print(len(arr_nucleus_contours))
-        print(f"contours {arr_nucleus_contours}")
-        print("_________________________")
-        if len(arr_nucleus_contours) <=0: 
-            print("no contours found")
-            self.add_p_event_processed = False
-            return
-        else: 
-
-            #Check if polygon is on edge of screen
-            print(f"crop {scropx1},{scropy2},{scropx2},{scropy2}")
-            temp_anc = arr_nucleus_contours
-            keys = []
-            for row in temp_anc:
-                if row[0] not in keys:
-                    keys.append(row[0])
-            
-            print(f"keys {keys}")
-            for row in arr_nucleus_contours:    #[index,i,x,y]
-                print(row)
-
-                #Scale values based on scale and offset
-                #NO ZOOM
-                if  self.imscale == 1.0:
-                #Is the crop on the edge of the screen?
-                    if scropx1 <= 2 or scropy1 <=2 or scropx2 >= self.baseWidth-2 or scropy2 >= self.baseHeight-2:
-                        #LEFT
-                        if scropx1<= 2:
-                            if row[2] >= scropx2-2 and row[3] <= scropy1+2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]                                
-                                print("UPRIGHTCORNER")
-                            if row[2] >= scropx2-2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("RIGHT")
-                            if row[3] >= scropy2-2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("BOT")    
-                            if row[3] <= scropy1+2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("UP")                               
-                        #BOT
-                        if scropy2 >= self.baseHeight-2:
-                            if row[3] <= scropy1+2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("UPPER")
-                            if row[2] <= scropx1+2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("LEFT")
-                            if row[2] >= scropx2-2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("RIGHT")
-
-
-                        #TOP
-                        if scropy1<= 2:
-                            if row[2] <= scropx1+2 and row[3] >= scropy2-2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]                                
-                                print("BOTLEFTCORNER")
-                            if row[2] <= scropx1+2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("LEFT")
-                            if row[2] >= scropx2-2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("RIGHT")
-                        #RIGHT
-                        if scropx2 >= self.baseWidth-2:
-                            if row[2] <= scropx1+2 and row[3] <= scropy1+2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]                                
-                                print("UPLEFTCORNER")
-                            if row[2] <= scropx1+2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("RIGHT")
-                            if row[3] >= scropy2-2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("BOT")    
-                            if row[3] <= scropy1+2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("UP")    
-                    else:
-                        if row[2] <= scropx1 or row[3] <= scropy1 or row[2] >= scropx2-2 or row[3] >= scropy2 - 2:
-                            indextodelete = row[0]
-                            temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]
-                #ZOOMED IN
-                elif self.imscale > 1.0:
-                    #smousex = smousex*1/self.imscale + (max(self.grey_image_offset_x,self.si_x1*1/self.imscale))
-                    #smousey = smousey*1/self.imscale + (max(self.grey_image_offset_y,self.si_y1*1/self.imscale))
-                    if socropx1 <= 2 or socropy1 <=2 or socropx2 >= self.baseWidth-2 or socropy2 >= self.baseHeight-2:
-                        #LEFT
-                        if socropx1<= 2:
-                            if row[2] >= socropx2-2 and row[3] <= socropy1+2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]                                
-                                print("UPRIGHTCORNER")
-                            if row[2] >= socropx2-2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("RIGHT")
-                            if row[3] >= socropy2-2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("BOT")    
-                            if row[3] <= socropy1+2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("UP")                               
-                        #BOT
-                        if socropy2 >= self.baseHeight-2:
-                            if row[3] <= socropy1+2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("UPPER")
-                            if row[2] <= socropx1+2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("LEFT")
-                            if row[2] >= socropx2-2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("RIGHT")
-
-
-                        #TOP
-                        if socropy1<= 2:
-                            if row[2] <= socropx1+2 and row[3] >= socropy2-2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]                                
-                                print("BOTLEFTCORNER")
-                            if row[2] <= socropx1+2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("LEFT")
-                            if row[2] >= socropx2-2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("RIGHT")
-                        #RIGHT
-                        if socropx2 >= self.baseWidth-2:
-                            if row[2] <= socropx1+2 and row[3] <= socropy1+2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]                                
-                                print("UPLEFTCORNER")
-                            if row[2] <= socropx1+2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("RIGHT")
-                            if row[3] >= socropy2-2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("BOT")    
-                            if row[3] <= socropy1+2:
-                                indextodelete = row[0]
-                                temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]   
-                                print("UP")    
-                    else:
-                        if row[2] <= socropx1 or row[3] <= socropy1 or row[2] >= socropx2-2 or row[3] >= socropy2 - 2:
-                            indextodelete = row[0]
-                            temp_anc = [rowt for rowt in temp_anc if rowt[0] != indextodelete]
-                
-                #ZOOMED OUT
-                elif self.imscale < 1.0:
-                    print("ZOOMED OUT")
-                   # smousex = ((smousex - max(0,self.grey_image_offset_x))*1/self.imscale) + self.si_x1*1/self.imscale
-                   # smousey = ((smousey - max(0,self.grey_image_offset_y))*1/self.imscale) + self.si_y1*1/self.imscale
-                    pass
-
-
-            arr_nucleus_contours = temp_anc
-            if len(arr_nucleus_contours) <= 0: 
-                print("No contours")
-                self.add_p_event_processed = False
-                return
-            else:
-                self.draw_added_polygons(arr_nucleus_contours)
-
-    def man_poly_point(self,event):
-        if self.ManPoly_toggle.get() == False: return
-        x = self.canvas.canvasx(event.x)
-        y = self.canvas.canvasy(event.y) 
-        #x,y = event.x, event.y
-        self.manpolypoints.append((x,y))
-        self.draw_mantemppoly()
-
-    def man_poly_point_complete(self,event):
-        if self.ManPoly_toggle.get() == False: return
-        print("COMPLETE MANUAL POLYGON")
-        if len(self.manpolypoints) > 2:
-            #self.canvas.create_line(self.manpolypoints, fill='white', width=2, tags='tempmanpolygon')
-            self.canvas.delete('tempmanpolygon')
-            newindex = len(self.polygons) + 1
-            self.draw_polygon(self.manpolypoints, newindex)
-            self.manpolypoints = []
-
-    def draw_mantemppoly(self):
-        # Redraw polygon based on current points
-        self.canvas.delete('tempmanpolygon')
-        if len(self.manpolypoints) > 1:
-            self.canvas.create_line(self.manpolypoints, fill='green', width=2, tags='tempmanpolygon')
-
-
-    def draw_added_polygons(self,nuc_cntrs):
-        #print(nuc_cntrs)
-        prev_column_value = None
-        coordinates = []
-        cell_index_table = [0, 0]
-        for row in nuc_cntrs:
-            if prev_column_value is None or row[0] == prev_column_value:
-                temp_array = row[2:]
-                coordinates = np.hstack((coordinates, temp_array))
-            else:
-                new_row = [row[0], str(coordinates)]
-                cell_index_table = np.vstack((cell_index_table, new_row))
-                scaled_coordinates = [coord  if i % 2 == 0 else coord  for i, coord in
-                                    enumerate(coordinates)]
-                newindex = len(self.polygons) + 1
-                    
-
-            
-                self.draw_polygon(scaled_coordinates, newindex)  # Pass index to draw_polygon function
-                coordinates = row[2:]
-            prev_column_value = row[0]
-        scaled_coordinates = [coord if i % 2 == 0 else coord for i, coord in enumerate(coordinates)]
-        newindex = len(self.polygons) + 1
-        self.draw_polygon(scaled_coordinates, newindex)
-
-        self.add_p_event_processed = False
-    #------POLYGON HIGHLIGHTING-----------------------------------
     def highlight_polygon(self, polygon):
         self.canvas.itemconfig(polygon, fill='yellow')
     def unhighlight_polygon(self, polygon):
-        self.canvas.itemconfig(polygon, fill='')
-    #-------------------------------------------------------------  
-    #-----SCROLLING CANVAS WITH SCROLLBARS------------------------    
-    def scroll_y(self, *args, **kwargs):
+        self.canvas.itemconfig(polygon, fill='') 
+    def remove_all_polygons(self):
+        print(len(self.polygons))
+        while self.polygons:  # While list is not empty
+            (index, p, ilabel) = self.polygons[0]  # Get first element
+            self.canvas.delete(ilabel)
+            self.canvas.delete(p)
+            del self.polygons[0]  # Remove first element
+        print(len(self.polygons))
+        self.update_nuc_count()
+    #######################################################
+    ##################_MOVEMENT_CONTROLS_##################
+    def set_user_input_controls(self):
+        """
+        Create key binding-function linking for user-input for different platforms.
+        """
 
-        old_view = self.scrollview
-        ''' Scroll canvas vertically and redraw the image '''
-        self.canvas.yview(*args, **kwargs)  # scroll vertically
-        new_view = self.canvas.yview()
-
-        shift = (old_view[0] - new_view[0], old_view[1] - new_view[1])
+        self.canvas.bind("<Motion>", self.motion)
+        self.canvas.bind('<Configure>', self.show_image)  # canvas is resized
         
-        self.scrollview[0] += shift[0]
-        self.scrollview[1] += shift[1]
+        if platform.system() == "Darwin":  # macOS
+            self.canvas.bind("<Button-1>", self.remove_polygon) #click polygon to remove
+            self.canvas.bind("<Button-1>", self.man_poly_point, add='+') #add Vertex for manual polygon 
+            self.canvas.bind('<Button-2>', self.add_polygon) # right-click for macOS
+            self.canvas.bind('<Button-2>', self.man_poly_point_complete, add='+') # close manual polygon
+            self.canvas.bind('<ButtonPress-3>', self.move_from)
+            self.canvas.bind('<B3-Motion>',     self.move_to)
+            self.canvas.bind("<MouseWheel>", self.zoom)
+        elif platform.system() == "Linux":  # Linux
+            self.canvas.bind("<Button-1>", self.remove_polygon) #click polygon to remove
+            self.canvas.bind("<Button-1>", self.man_poly_point, add='+') #add Vertex for manual polygon 
+            self.canvas.bind('<Button-3>', self.add_polygon) # right-click for Linux
+            self.canvas.bind('<Button-3>', self.man_poly_point_complete, add='+') # close manual polygon
+            self.canvas.bind('<ButtonPress-2>', self.move_from)
+            self.canvas.bind('<B2-Motion>',     self.move_to)
+            self.canvas.bind("<Button-4>", self.zoom)
+            self.canvas.bind("<Button-5>", self.zoom)
+        elif platform.system() == "Windows": #Windows
+            self.canvas.bind("<Button-1>", self.remove_polygon) #left-click to remove polygon
+            self.canvas.bind("<Button-1>", self.man_poly_point, add='+') #left-click to add vertex
+            self.canvas.bind('<Button-3>', self.add_polygon) #right-click to add polygon
+            self.canvas.bind('<Button-3>', self.man_poly_point_complete, add='+') #right-click to complete polygon
+            self.canvas.bind('<ButtonPress-2>', self.move_from) #middle-click press to start moving
+            self.canvas.bind('<B2-Motion>', self.move_to) #middle-click drag to move
+            self.canvas.bind("<MouseWheel>", self.zoom) #mouse wheel to zoom
 
-        print(f"sview {self.scrollview[0]},{self.scrollview[1]}")
+
+    def move_from(self, event):
+        ''' Remember previous coordinates for scrolling with the mouse '''
+        self.canvas.scan_mark(event.x, event.y)
+    def move_to(self, event):
+        ''' Drag (move) canvas to the new position '''
+        self.canvas.scan_dragto(event.x, event.y, gain=1)
         self.show_image()  # redraw the image
-    def scroll_x(self, *args, **kwargs):
+    def zoom(self, event):
+        print("scrolling")
+        ''' Zoom with mouse wheel '''
+        x = self.canvas.canvasx(event.x)
+        y = self.canvas.canvasy(event.y)
+        bbox = self.canvas.bbox(self.container)  # get image area
+        if bbox[0] < x < bbox[2] and bbox[1] < y < bbox[3]: pass  # Ok! Inside the image
+        else: return  # zoom only inside image area
+        scale = 1.0
+        # Respond to Linux (event.num) or Windows (event.delta) wheel event
+        if event.num == 5 or event.delta > 0:  # scroll down
+            print("down)")
+            i = min(self.width, self.height)
+            if int(i * self.imscale) < 30: return  # image is less than 30 pixels
+            self.imscale /= self.delta
+            scale        /= self.delta
+        if event.num == 4 or event.delta < 0:  # scroll up
+            print("up")
+            i = min(self.canvas.winfo_width(), self.canvas.winfo_height())
+            if i < self.imscale: return  # 1 pixel is bigger than the visible area
+            self.imscale *= self.delta
+            scale        *= self.delta
 
-        old_view = self.scrollview
+        print(self.imscale)
+        self.canvas.scale('all', x, y, scale, scale)  # rescale all canvas objects
+        self.show_image()
+   
+   
+
+    def scroll_y(self, *args, **kwargs):
+        self.canvas.yview(*args, **kwargs)  # scroll vertically
+        self.show_image()  # redraw the image
+
+
+    def scroll_x(self, *args, **kwargs):
         ''' Scroll canvas horizontally and redraw the image '''
         self.canvas.xview(*args, **kwargs)  # scroll horizontally
-        new_view = self.canvas.xview()
-        shift = (old_view[0] - new_view[0], old_view[1] - new_view[1])
-
-        self.scrollview[0] += shift[0]
-        self.scrollview[1] += shift[1]
-
-        print(f"sview {self.scrollview[0]},{self.scrollview[1]}")
         self.show_image()  # redraw the image
-    #-------------------------------------------------------------
-    
-    def get_reg_channel(self, channels):
-        for index,channel in enumerate(channels):
-            if channel == "DAPI":
-                return index
 
-    def nucmask__init__(self):
-        self.arr_nucleus_contours = None    
+
+    def motion(self, event):
+        """
+        Handles motion tracking when the canvas is clicked and dragged.
+
+        Args:
+        event () = 
+        """
+        pass
+
+
+    def segment_mips(self) -> List[Tuple[int, int]]:
+        """
+        Segments MIPs using the designated segmentation algorithm.
         
-
-        #Get Zslice from C0 of F1 for 
-        self.slice_ismask = self.get_masking_slice()
-        self.mip_tomask = self.get_MIP_tomask()
-        self.generate_nucleus_mask(self.slice_ismask, self.mip_tomask)
-
-    def get_MIP_tomask(self):
-        #self.mip_tomask_dir = os.path.join(self.processing_directory_folder,"FILE_1",self.p_MIP_directory,self.chanidstring)
-        #self.mip_tomask_dir = os.path.join(self.processing_directory_folder,"FILE_1","RAW_MIP",self.F1_DAPI_dir)
-        self.mip_tomask_dir = os.path.join(self.processing_dir,self.f1_ntag,self.f1_cs[self.f1_reg_c],"MIP")
-
-        mip_tomask_list = os.listdir(self.mip_tomask_dir)
-        mip_tomask = os.path.join(self.mip_tomask_dir,mip_tomask_list[0])
-        self.input_img_path = mip_tomask
-
-        return mip_tomask
-
-    def slice_sort_key(self, filename):
-        # Extract the number between "z" and "_.tif" in the filename
-        start_index = filename.find('z') + 1
-        end_index = filename.find('.tif')
-        number_str = filename[start_index:end_index]
-        # Convert the extracted number string to an integer
-        return int(number_str)
-     
-    def get_masking_slice(self):
-        # Load the f1_slices into an array
-        slices = os.listdir(self.f1_zslices_dir)
-        sorted_slices = sorted(slices, key=self.slice_sort_key)
-        print(sorted_slices)
-
-        self.f1_zslices_sorted = []
-
-        for s in sorted_slices:
-            path = os.path.join(self.f1_zslices_dir,s)
-            sliceimage = Image.open(path)
-            print(s)
-            self.f1_zslices_sorted.append(sliceimage)
-            print(self.f1_zslices_sorted)
-
-        self.mid_slice_id = self.find_middle_slice(self.f1_zslices_sorted)
+        Returns:
+            List of coordinate tuples representing segmented contours
+        """
+        f1_seg_path = cfg.F1_SEG_C
+        nuclei_seg_script = cfg.NUC_SEG_ALGO_PATH
         
-        slice_formask =f"{self.f1_ntag}_{cfg.F1_REG_C}_z{self.mid_slice_id}.tif"
-        slice_formask_path = os.path.join(self.f1_zslices_dir,slice_formask)
-        print(f"Slice used to mask: {slice_formask_path}")
-        return slice_formask_path
-
-    def find_middle_slice(self,stack):
-        middle_slice = int(len(stack)/2)
-        return middle_slice
-    
-    def generate_nucleus_mask(self,dapi_nucleus_mask_input,dna_mip_input):
-        dapi_nucleus_base_img_in = cv2.imread(dapi_nucleus_mask_input, cv2.IMREAD_UNCHANGED)
-        dapi_nucleus_base_img = dapi_nucleus_base_img_in * 255
-
-        cv2.imwrite(os.path.join(self.processing_dir, f"dapinucleusbaseimg.tif"), dapi_nucleus_base_img_in )
+        input_data = {"file_#": 1, "seg_c": f1_seg_path}
+        print(f"Processing file: {input_data['seg_c']}")
+        print(f"Type of nuclei_seg_script: {type(nuclei_seg_script)}")
+        print(f"Value of nuclei_seg_script: {nuclei_seg_script}")
         
-        dapi_nucleus_base_img_8bit = cv2.convertScaleAbs(dapi_nucleus_base_img_in, alpha=(255.0/65535.0))
+        # Verify script existence
+        import os
+        print(f"Script file exists: {os.path.exists(nuclei_seg_script)}")
+        print(f"Current working directory: {os.getcwd()}")
 
-        cv2.imwrite(os.path.join(self.processing_dir, f"dapinucleusbaseimg2.tif"), dapi_nucleus_base_img_8bit )
-    
-
-        dapi_nucleus_base_img = dapi_nucleus_base_img_8bit
-
-        dna_mip_img = cv2.imread(dna_mip_input, cv2.IMREAD_GRAYSCALE)
-        gblur_img = cv2.GaussianBlur(dapi_nucleus_base_img,(35,35),0)
-        ret3, nucleus_threshold_img = cv2.threshold(gblur_img,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-
-        # Convert nucleus_threshold_mask to uint8 if necessary
-        nucleus_threshold_mask = nucleus_threshold_img.astype(np.uint8)
-
-        # Ensure the size of the mask matches the size of the source image
-        assert dna_mip_img.shape[:2] == nucleus_threshold_mask.shape[:2], "Image and mask must have the same size"
-
-        # Apply the mask
-        masked_dna_img = cv2.bitwise_and(dna_mip_img, dna_mip_img, mask=nucleus_threshold_mask)
+        try:
+            result = self._execute_segmentation_script(nuclei_seg_script, input_data)
+            self.nuclei_contours = result.get("contours", [])
+            print(f"Segmentation complete. Found {len(self.nuclei_contours)} contours")
+            print(self.nuclei_contours)
+            return self.nuclei_contours
+        except Exception as e:
+            print(f"Segmentation failed: {e}")
+            return []
 
 
-        output_path = os.path.join(self.processing_dir, f"masked_dna_mip.tif")    
-        cv2.imwrite(output_path,masked_dna_img)
+    def finalize_nucpicking(self):
+        self.update_nuc_count
+        aparams.seg_nuc_count = self.nuccount
+        cfg.SEG_NUC_COUNT = self.nuccount
+
+        #Set Coordinates back to base
+        dx = -self.canvas.coords(self.container)[0]
+        dy = -self.canvas.coords(self.container)[1]
+        self.canvas.move('all', dx,dy)
+        self.canvas.scale('all', 0,0, 1/self.imscale, 1/self.imscale)
+
+        #updates polygons
+        polygon_ids = self.canvas.find_withtag('polygon')
+        self.polygons = []
+
+        nucnum = 1
+        for poly_id in polygon_ids:
+            coords = self.canvas.coords(poly_id)
+            self.polygons.append([nucnum]+ [coords])
+            print(coords)
+            nucnum += 1
+
+        aparams.nuc_polygons = self.polygons
+        cfg.SEG_NUC_POLYGONS = self.polygons
+
+        print("FINISHED NUC PICK")
+
+        self.switch()
 
 
-        output_path = os.path.join(self.processing_dir, f"nucleus_threshold_img.tif")    
-        cv2.imwrite(output_path,nucleus_threshold_img)
 
-        #NEW -DILATE 
-        kernel = np.ones((10, 10), np.uint8)  # Define a kernel for dilation; adjust size for more or less dilation
-        dilated_mask = cv2.dilate(nucleus_threshold_img, kernel, iterations=1)  # Dilation
-        nucleus_threshold_img = dilated_mask.copy()
-        #----count cells--------
-
-        edged_img = cv2.Canny(nucleus_threshold_img, 30,150)
-
-        dna_mip_base = cv2.imread(dna_mip_input, cv2.COLOR_BGR2GRAY)
-        contours, hierarchy = cv2.findContours(nucleus_threshold_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        contoured_dna_img = dna_mip_base.copy()
-        cv2.drawContours(contoured_dna_img, contours, -1, (0,255,0), 2, cv2.LINE_AA)
-        print(list(contours))
-        print("CONTOURS LIST)")
-
-        index = 1
-        isolated_count = 0
-        cluster_count = 0
-        #contoured_dna_img_1 = dna_mip_base.copy()
-        #contoured_dna_img_2 = cv2.cvtColor(contoured_dna_img_1, cv2.COLOR_GRAY2BGR) * 255
-        contoured_dna_img_1 = cv2.imread(dna_mip_input, cv2.IMREAD_GRAYSCALE)
-        contoured_dna_img_2 = cv2.cvtColor(contoured_dna_img_1, cv2.COLOR_GRAY2BGR) *255
-        #np -> [index, i , x, y]
-        arr_nucleus_contours = np.empty([1,4])
-        #print(arr_nucleus_contours)
-
-        for cntr in contours:
-            area = cv2.contourArea(cntr)
-            convex_hull = cv2.convexHull(cntr)
-            convex_hull_area = cv2.contourArea(convex_hull)
-            if convex_hull_area > 0:
-                ratio = area / convex_hull_area
-            else: ratio = 0
-
+    def _execute_segmentation_script(self, script_path: str, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Safely executes a segmentation script with provided input data.
+        
+        Args:
+            script_path: Path to the segmentation script
+            input_data: Dictionary containing input parameters
             
-            print(index, area, convex_hull_area, ratio)
-            x,y,w,h = cv2.boundingRect(cntr)
-            cv2.putText(contoured_dna_img_2, str(index), (x,y), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0,0,255), 2)
-            if ratio < 0.91:
-                # cluster contours in red
-                cv2.drawContours(contoured_dna_img_2, [cntr], 0, (0,0,255), 2)
-                cluster_count = cluster_count + 1
-            else:
-                # isolated contours in green
-                cv2.drawContours(contoured_dna_img_2, [cntr], 0, (0,0,255), 2)
-                isolated_count = isolated_count + 1
-
-            epsilon = 0.001 * cv2.arcLength(cntr, True)
-            approx = cv2.approxPolyDP(cntr, epsilon, True)
-            n = approx.ravel()  
-            i = 0
-            font = cv2.FONT_HERSHEY_COMPLEX 
-            for j in n : 
-                if(i % 2 == 0): 
-                    x = n[i] 
-                    y = n[i + 1] 
+        Returns:
+            Dictionary containing processed results
+        """
+        print(f"Executing script with script_path type: {type(script_path)}")
+        print(f"script_path value: {script_path}")
         
-                    # String containing the co-ordinates. 
-                    string = str(x) + " " + str(y)
-
-                    #Generate contours cooridinates array to pass into tkinter visualization
-                    arr_nucleus_contours = np.vstack((arr_nucleus_contours , [index,i,x,y]))
-        
-                    if(i == 0): 
-                        # text on topmost co-ordinate. 
-                        cv2.putText(contoured_dna_img_2, "Arrow tip", (x, y), 
-                                        font, 0.5, (255, 0, 0))  
-                    else: 
-                        # text on remaining co-ordinates. 
-                        cv2.putText(contoured_dna_img_2, string, (x, y),  
-                                font, 0.5, (0, 255, 0))  
-                    #print(f"index: {index} i: {i} x: {x} y: {y}")
-
-                i = i + 1
-            index = index + 1
-        #print('number_clusters:',cluster_count)
-        #print('number_isolated:',isolated_count)
-
-
-        arr_nucleus_contours = np.delete(arr_nucleus_contours,(0),axis=0)
-
-        #Pass to DynData Class
-        self.arr_nucleus_contours = arr_nucleus_contours
-        #dyn_data.arr_nucleus_contours = self.arr_nucleus_contours   
-
-        print(arr_nucleus_contours)
-        print(len(arr_nucleus_contours))
-
-        #cell_pick_gui_main(arr_nucleus_contours)
-        #---------------
-        #cv2.imshow('Base Image', dapi_nucleus_base_img)
-        #cv2.imshow('Gaussian Blur Image', gblur_img)
-        #cv2.imshow('Threshold Nucleus Image', nucleus_threshold_img)
-        #cv2.imshow('Masked DNA Image', masked_dna_img)
-        #cv2.imshow('Contoured Image', contoured_dna_img)
-        #cv2.imshow('Contoured2 Image',contoured_dna_img_2)
-        #cv2.waitKey(0)
-        #cv2.destroyAllWindows
+        try:
+            spec = importlib.util.spec_from_file_location("segmenter", script_path)
+            if spec is None:
+                raise ImportError(f"Could not load script at {script_path}")
+            module = importlib.util.module_from_spec(spec)
+            print("Module spec created successfully")
+            spec.loader.exec_module(module)
+            print("Module loaded successfully")
+            result = module.main(input_data)
+            print("Script executed successfully")
+            return result
+        except AttributeError:
+            print("Error: Segmentation script must define a 'main' function")
+            return input_data
+        except Exception as e:
+            print(f"Script execution error: {e}")
+            return input_data
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#LOGIC TO LOAD SEGMENTATION ALGORITHM TO RUN IMAGES THROUGH
