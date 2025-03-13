@@ -30,7 +30,7 @@ class AutoScrollbar(tk.Scrollbar):
     def place(self, **kw):
         raise tk.TclError('Cannot use place with this widget')
     
-    
+
 class SegmentationGUI(tk.Frame):
     def __init__(self, master, switch_to_new_gui, logger):
         self.master = master
@@ -114,8 +114,6 @@ class SegmentationGUI(tk.Frame):
         self.image = self.normalize_image(self.image)
 
         self.width, self.height = self.image.size
-        print(self.width)
-        print(self.height)
         self.baseHeight = self.height
         self.baseWidth = self.width
         self.imscale = 1.0  # scale for the canvaas image
