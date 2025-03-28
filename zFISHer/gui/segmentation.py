@@ -580,7 +580,9 @@ class SegmentationGUI(tk.Frame):
         cfg.SEG_NUC_POLYGONS = self.polygons
 
         print("FINISHED NUC PICK")
+        print(cfg.SEG_NUC_POLYGONS)
 
+        self.generate_polygon_raster_mask()     #raster mask used to mark each [pixel for punctafinder]
         self.switch()
 
 
@@ -616,5 +618,70 @@ class SegmentationGUI(tk.Frame):
         except Exception as e:
             print(f"Script execution error: {e}")
             return input_data
+
+
+
+
+    def point_in_polygon(self,x, y, poly_coords):
+        """Check if point (x, y) is inside polygon defined by poly_coords [x1, y1, x2, y2, ...]"""
+        n = len(poly_coords) // 2  # Number of vertices
+        inside = False
+        x_coords = poly_coords[0::2]  # Every even index
+        y_coords = poly_coords[1::2]  # Every odd index
+        
+        p1x, p1y = x_coords[0], y_coords[0]
+        for i in range(n + 1):
+            p2x, p2y = x_coords[i % n], y_coords[i % n]
+            if y > min(p1y, p2y):
+                if y <= max(p1y, p2y):
+                    if x <= max(p1x, p2x):
+                        if p1y != p2y:
+                            xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+                        if p1x == p2x or x <= xinters:
+                            inside = not inside
+            p1x, p1y = p2x, p2y
+        return inside
+
+    def create_mask_from_polygons(self, polygons, width, height):
+        # Create an empty mask with zeros (background)
+        mask = np.zeros((height, width), dtype=np.uint16)  # Use uint16 for more than 255 nuclei
+        
+        # Process each polygon
+        for poly_data in polygons:
+            nucnum = poly_data[0]  # The polygon ID
+            coords = poly_data[1]  # List of coordinates [x1, y1, x2, y2, ...]
+            
+            # Get bounding box
+            x_coords = coords[0::2]  # Every even index
+            y_coords = coords[1::2]  # Every odd index
+            minx, maxx = int(max(0, min(x_coords))), int(min(width, max(x_coords)))
+            miny, maxy = int(max(0, min(y_coords))), int(min(height, max(y_coords)))
+            
+            # Fill the mask
+            for y in range(miny, maxy + 1):
+                for x in range(minx, maxx + 1):
+                    if self.point_in_polygon(x, y, coords):
+                        mask[y, x] = nucnum
+        
+        return mask
+
+
+
+    def generate_polygon_raster_mask(self):
+        print("DOING RASTER MASK")
+        # Example usage
+        width = self.baseWidth  # Replace with your canvas width
+        height = self.baseHeight  # Replace with your canvas height
+
+        # Assuming self.polygons is your list from earlier
+        mask = self.create_mask_from_polygons(self.polygons, width, height)
+
+        # Save as TIFF using PIL
+        mask_img = Image.fromarray(mask)  # 16-bit for more nuclei
+        #mask_img.save('mask.tif')
+        mask_array = np.array(mask_img)
+        output_path = os.path.join(cfg.SEG_PROCESSING_DIR, "raster_mask.tif")    
+        print(output_path)
+        cv2.imwrite(output_path,mask_array)
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 #LOGIC TO LOAD SEGMENTATION ALGORITHM TO RUN IMAGES THROUGH

@@ -24,7 +24,7 @@ class PunctaPickGUI(tk.Frame):
         print("INTIALIZE ROI PICKING")
         self.set_root_window(master)    
         self.set_gui_switch(switch_to_gui_two)
-        #self.set_logger(logger)
+        self.set_logger(logger)
         self.get_input_filepaths()
         self.get_analysis_params()
         ######################################################
