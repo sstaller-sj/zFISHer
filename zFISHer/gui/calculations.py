@@ -7,8 +7,9 @@ from datetime import datetime
 import queue
 import os
 
-import zFISHer.config.config_manager as cfgmgr
+#import zFISHer.config.config_manager as cfgmgr
 import zFISHer.data.parameters as aparams
+import zFISHer.utils.config as cfg
 
 import math
 import numpy as np
@@ -70,10 +71,10 @@ class CalculationsGUI(tk.Frame):
         # Create a queue for progress updates
         self.progress_queue = queue.Queue()
     def get_data(self):
-        self.x_offset = cfgmgr.get_config_value("X_OFFSET")
-        self.y_offset = cfgmgr.get_config_value("Y_OFFSET")
-        self.z_offset = cfgmgr.get_config_value("Z_OFFSET")
-        self.f2_offset = [cfgmgr.get_config_value("X_OFFSET"),cfgmgr.get_config_value("Y_OFFSET")]
+        self.x_offset = cfg.OFFSET_X
+        self.y_offset = cfg.OFFSET_Y
+        self.z_offset = cfg.OFFSET_Z
+        self.f2_offset = [cfg.OFFSET_X,cfg.OFFSET_Y]
         # Pulling all data to display analysis stats in the GUI
         self.kpchan_kpnuc_xbundle = aparams.kpchan_kpnuc_xbundle #for bundle of each channel kp, an array = [kpID,kpOvalID,kp_x,kp_y,nucInd,polyID,polyTextID]
         self.kpchan_ROIradius_xbundle = aparams.kpchan_ROIradius_xbundle  # need to get in picking
@@ -87,12 +88,12 @@ class CalculationsGUI(tk.Frame):
 
 
         # Get directories information to access files
-        self.output_dir = cfgmgr.get_config_value("OUTPUT_DIR")
-        self.f1_cs = cfgmgr.get_config_value("FILE_1_CHANNELS")
-        self.f2_cs = cfgmgr.get_config_value("FILE_2_CHANNELS")
-        self.processing_dir = cfgmgr.get_config_value("PROCESSING_DIR")
-        self.f1_ntag = cfgmgr.get_config_value("FILE_1_NAMETAG")
-        self.f2_ntag = cfgmgr.get_config_value("FILE_2_NAMETAG")
+        self.output_dir = cfg.OUTPUT_DIR
+        self.f1_cs = cfg.F1_C_LIST
+        self.f2_cs = cfg.F2_C_LIST
+        self.processing_dir = cfg.PROCESSING_DIR
+        self.f1_ntag = cfg.F1_NTAG
+        self.f2_ntag = cfg.F2_NTAG
 
 
         self.mpp = 0.108333333333333     # This many microns per pixel
@@ -273,8 +274,8 @@ class CalculationsGUI(tk.Frame):
             ROI_pairs = self.pairs_array
             f2_offset_x = self.x_offset
             f2_offset_y = self.y_offset
-            f1_middle_Zslice = int(cfgmgr.get_config_value("FILE_1_Z_COUNT")/2)
-            f2_middle_Zslice = int(cfgmgr.get_config_value("FILE_2_Z_COUNT")/2)
+            f1_middle_Zslice = int(cfg.F1_Z_NUM/2)
+            f2_middle_Zslice = int(cfg.F2_Z_NUM/2)
 
             yes_arr = []
             no_arr = []

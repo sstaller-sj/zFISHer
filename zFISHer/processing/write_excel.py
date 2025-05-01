@@ -1,4 +1,5 @@
-import zFISHer.config.config_manager as cfgmgr
+#import zFISHer.config.config_manager as cfgmgr
+import zFISHer.utils.config as cfg
 import zFISHer.data.parameters as aparams
 
 import os
@@ -61,15 +62,15 @@ class WriteExcel():
         file1_filename = "FILE 1" #TODO FILE 1 NAME
         file2_filename = "FILE 2" #TODO FILE 2 NAME
         nuclei_count = aparams.seg_nuc_count
-        foffset = [cfgmgr.get_config_value("X_OFFSET"),cfgmgr.get_config_value("X_OFFSET")]
-        f1nametag = cfgmgr.get_config_value("FILE_1_NAMETAG")
-        f2nametag = cfgmgr.get_config_value("FILE_2_NAMETAG")
+        foffset = [cfg.OFFSET_X,cfg.OFFSET_Y]
+        f1nametag = cfg.F1_NTAG
+        f2nametag = cfg.F2_NTAG
 
 
  
 
-        f1slicecount = cfgmgr.get_config_value("FILE_1_Z_COUNT")
-        f2slicecount = cfgmgr.get_config_value("FILE_2_Z_COUNT")
+        f1slicecount = cfg.F1_Z_NUM
+        f2slicecount = cfg.F2_Z_NUM
 
        # atoggles = dyn_data.kpchan_analysistoggle_xbundle
         ROIradii = aparams.kpchan_ROIradius_xbundle   
@@ -96,10 +97,10 @@ class WriteExcel():
         nuc_count = aparams.seg_nuc_count
         in_bundle_ROI = aparams.kpchan_kpnucxyz_xbundle #file_id,channel,chanrad,chan_e,kpID,kpOvalID,kp_x,kp_y,nucInd,polyID,polyTextID, max_slice_index, max_intensity
 
-        f1_cs = cfgmgr.get_config_value("FILE_1_CHANNELS")
-        f2_cs = cfgmgr.get_config_value("FILE_2_CHANNELS")
-        f1_ntag = cfgmgr.get_config_value("FILE_1_NAMETAG")
-        f2_ntag = cfgmgr.get_config_value("FILE_2_NAMETAG")
+        f1_cs = cfg.F1_C_LIST
+        f2_cs = cfg.F2_C_LIST
+        f1_ntag = cfg.F1_NTAG
+        f2_ntag = cfg.F2_NTAG
 
         # Create dictionary that will have each nuclei polygon as a key.
         nuclei_collection ={}
@@ -301,7 +302,7 @@ class WriteExcel():
         for row in data6:
             ws6.append(row)
 
-        output_dir = cfgmgr.get_config_value("OUTPUT_DIR")
+        output_dir = cfg.OUTPUT_DIR
         file_name = 'AIP_output.xlsx'
         wb.save(os.path.join(output_dir,file_name))        
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------#

@@ -1,7 +1,7 @@
 import tkinter as tk
 import os
 from PIL import Image, ImageTk
-import zFISHer.config.config_manager as cfgmgr
+#import zFISHer.config.config_manager as cfgmgr
 import zFISHer.utils.config as cfg
 import zFISHer.data.parameters as aparams
 import cv2
@@ -67,16 +67,14 @@ class PunctaPickGUI(tk.Frame):
     def get_input_filepaths(self):
         """
         """
-        self.f1_ntag = cfgmgr.get_config_value("FILE_1_NAMETAG")
-        self.f2_ntag = cfgmgr.get_config_value("FILE_2_NAMETAG")
-        self.f1_channels = cfgmgr.get_config_value("FILE_2_NAMETAG")
+        self.f1_ntag = cfg.F1_NTAG
+        self.f2_ntag = cfg.F2_NTAG
 
-        self.f1_cs = cfgmgr.get_config_value("FILE_1_CHANNELS")
-        self.f2_cs = cfgmgr.get_config_value("FILE_2_CHANNELS")
+        self.f1_cs = cfg.F1_C_LIST
+        self.f2_cs = cfg.F2_C_LIST
 
-        self.processing_dir = cfgmgr.get_config_value("PROCESSING_DIR")
-        self.f1_ntag = cfgmgr.get_config_value("FILE_1_NAMETAG")
-        self.f2_ntag = cfgmgr.get_config_value("FILE_2_NAMETAG")
+        self.processing_dir = cfg.PROCESSING_DIR
+
 
         self.f1_reg_c = self.get_reg_channel(self.f1_cs)
         self.logger.log_message(f"Channel 1 registration channel: INDEX:{self.f1_reg_c} - NAME:{self.f1_cs[self.f1_reg_c]}")
@@ -101,7 +99,7 @@ class PunctaPickGUI(tk.Frame):
         #Get Nucleus and Puncta Arrays DynData
         self.kp_input = aparams.keypoints_array
         #Get F2 Offset
-        self.f2_offset = [cfgmgr.get_config_value("X_OFFSET"), cfgmgr.get_config_value("Y_OFFSET")]
+        self.f2_offset = [cfg.OFFSET_X, cfg.OFFSET_Y]
         #Get Polygon Coords
         self.polygons = aparams.nuc_polygons #[nucIndex,polyCoords] from Nuc Picking
         self.polygons = cfg.SEG_NUC_POLYGONS

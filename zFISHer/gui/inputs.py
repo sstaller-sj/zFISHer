@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import filedialog
 
 import zFISHer.utils.config as cfg
-import zFISHer.config.config_manager as cfgmgr
+#import zFISHer.config.config_manager as cfgmgr
 from zFISHer.gui.logger import Logger
 import zFISHer.processing.process_nd2 as process_nd2
 
@@ -170,16 +170,29 @@ class FileInputGUI():
 
 
     def set_initial_filepaths(self):
-        if cfgmgr.get_config_value("FILE_1_PATH") == None or cfgmgr.get_config_value("FILE_1_PATH") == "":
+        if cfg.F1_PATH == None or cfg.F1_PATH == None == "":
             pass
         else:
             self.f1_path_e.delete(0, tk.END)
-            self.f1_path_e.insert(0, cfgmgr.get_config_value("FILE_1_PATH"))
-        if cfgmgr.get_config_value("FILE_2_PATH") == None or cfgmgr.get_config_value("FILE_2_PATH") == "":
+            self.f1_path_e.insert(0, cfg.F1_PATH)
+        if cfg.F2_PATH == None or cfg.F2_PATH == None == "":
             pass
         else:
             self.f2_path_e.delete(0, tk.END)
-            self.f2_path_e.insert(0, cfgmgr.get_config_value("FILE_2_PATH"))    
+            self.f2_path_e.insert(0, cfg.F2_PATH == None)    
+
+
+
+      #  if cfgmgr.get_config_value("FILE_1_PATH") == None or cfgmgr.get_config_value("FILE_1_PATH") == "":
+       #     pass
+       # else:
+       #     self.f1_path_e.delete(0, tk.END)
+       #     self.f1_path_e.insert(0, cfgmgr.get_config_value("FILE_1_PATH"))
+       # if cfgmgr.get_config_value("FILE_2_PATH") == None or cfgmgr.get_config_value("FILE_2_PATH") == "":
+       #     pass
+       # else:
+       #     self.f2_path_e.delete(0, tk.END)
+       #     self.f2_path_e.insert(0, cfgmgr.get_config_value("FILE_2_PATH"))    
 
 
     def open_file_1(self):
@@ -219,6 +232,7 @@ class FileInputGUI():
    
         f1_filepath = self.f1_path_e.get()
         f2_filepath = self.f2_path_e.get()
+        print(f"FILE 1 and FILE 2 FILEPATHS: {f1_filepath} ---- {f2_filepath}")
         self.f1_metadata: dict = process_nd2.nd2_metadata_processor(f1_filepath)
         self.f2_metadata: dict = process_nd2.nd2_metadata_processor(f2_filepath)
 

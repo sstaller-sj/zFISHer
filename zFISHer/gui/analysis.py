@@ -1,7 +1,7 @@
 import tkinter as tk
 import os
 from PIL import Image, ImageTk
-import zFISHer.config.config_manager as cfgmgr
+#import zFISHer.config.config_manager as cfgmgr
 import zFISHer.data.parameters as aparams
 import cv2
 import numpy as np

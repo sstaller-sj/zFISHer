@@ -8,7 +8,7 @@ from tkinter import filedialog
 import cv2
 from nd2reader import ND2Reader
 
-import zFISHer.config.config_manager as cfgmgr #TODO REMOVE
+#import zFISHer.config.config_manager as cfgmgr #TODO REMOVE
 import zFISHer.utils.makedir as mkdir
 import zFISHer.utils.config as cfg
 import zFISHer.processing.z_slicer as zslicer
@@ -85,8 +85,10 @@ class ProcessingGUI():
         self.f2_c_num = "?"
         self.f1_ntag = "name"
         self.f2_ntag = "name"
-        self.f1_path = cfgmgr.get_config_value("FILE_1_PATH")  # replace with actual path
-        self.f2_path = cfgmgr.get_config_value("FILE_2_PATH")  # replace with actual path
+        #self.f1_path = cfgmgr.get_config_value("FILE_1_PATH")  # replace with actual path
+        #self.f2_path = cfgmgr.get_config_value("FILE_2_PATH")  # replace with actual path
+        self.f1_path = cfg.F1_PATH  # replace with actual path
+        self.f2_path = cfg.F2_PATH  # replace with actual path
         self.f1_z_num = None  # replace with actual number
         self.f2_z_num = None  # replace with actual number
         self.f1channels = ["ch1", "ch2"]  # replace with actual channels
