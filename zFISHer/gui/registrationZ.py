@@ -3,7 +3,7 @@ import numpy as np
 from PIL import Image, ImageTk
 import tkinter as tk
 from nd2reader import ND2Reader
-import zFISHer.config.config_manager as cfgmgr
+#import zFISHer.config.config_manager as cfgmgr
 
 
 '''This creates the gui that let's the user view and modify the slice offset of the two Z-stacks. '''

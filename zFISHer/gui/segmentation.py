@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import filedialog
 import os
 from PIL import Image, ImageTk
-import zFISHer.config.config_manager as cfgmgr
+#import zFISHer.config.config_manager as cfgmgr
 import cv2
 import numpy as np
 import platform

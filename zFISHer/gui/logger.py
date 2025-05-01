@@ -1,8 +1,9 @@
 import tkinter as tk
 import os
 import logging
-#import zFISHer.config.config as cfg
-import zFISHer.config.config_manager as cfgmgr
+import zFISHer.utils.config as cfg
+#import zFISHer.config.config_manager as cfgmgr
+
 from datetime import datetime
 from zFISHer import version
 
@@ -40,7 +41,8 @@ class Logger:
 
         # Configure log file
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_file = os.path.join(cfgmgr.get_config_value("LOGS_DIR"), f"log_{timestamp}.txt")
+        #self.log_file = os.path.join(cfg.get_config_value("LOGS_DIR"), f"log_{timestamp}.txt")
+        self.log_file = os.path.join(cfg.LOGS_DIR, f"log_{timestamp}.txt")
      #  logging.basicConfig(
      #      filename=self.log_file,
      #      filemode="a",  # Append to file
