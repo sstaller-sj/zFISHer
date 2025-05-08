@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 zFISHer/output/
 
+
 # Ignore all __pycache__ folders
 **/__pycache__/
 

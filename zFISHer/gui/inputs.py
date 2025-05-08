@@ -227,30 +227,44 @@ class FileInputGUI():
     def get_display_information(self):
         """
         Pull information from nd2 files for display to user.
-        #TODO Add logic for .tif stacks
         """
-   
         f1_filepath = self.f1_path_e.get()
         f2_filepath = self.f2_path_e.get()
         print(f"FILE 1 and FILE 2 FILEPATHS: {f1_filepath} ---- {f2_filepath}")
-        self.f1_metadata: dict = process_nd2.nd2_metadata_processor(f1_filepath)
-        self.f2_metadata: dict = process_nd2.nd2_metadata_processor(f2_filepath)
+
+        if f1_filepath and f1_filepath.endswith(".nd2"):
+            self.f1_metadata: dict = process_nd2.nd2_metadata_processor(f1_filepath)
+        else:
+            print("Invalid or missing FILE 1 path.")
+
+        if f2_filepath and f2_filepath.endswith(".nd2"):
+            self.f2_metadata: dict = process_nd2.nd2_metadata_processor(f2_filepath)
+        else:
+            print("Invalid or missing FILE 2 path.")
 
 
     def update_display(self):
         """
         Set the display information of the selected files and options.
         """
+        if not hasattr(self, 'f1_metadata') or not hasattr(self, 'f2_metadata'):
+            print("File metadata is incomplete. Skipping display update.")
+            return
 
         f1_c_list = self.f1_metadata['c_list']
         f2_c_list = self.f2_metadata['c_list']
+
         self.f1_reg_c_dd.destroy()
         self.f2_reg_c_dd.destroy()
+
         self.f1_reg_c_dd = tk.OptionMenu(self.options_frame, self.f1_reg_c_var, *f1_c_list)
         self.f2_reg_c_dd = tk.OptionMenu(self.options_frame, self.f2_reg_c_var, *f2_c_list)
+
         self.f1_reg_c_dd.grid(row=6, column=5, padx=10, pady=5)
         self.f2_reg_c_dd.grid(row=6, column=10, padx=10, pady=5)
-        self.dd_dapi_check(f1_c_list,f2_c_list)
+
+        self.dd_dapi_check(f1_c_list, f2_c_list)
+
 
 
     def dd_dapi_check(self,f1_c_list,f2_c_list):
