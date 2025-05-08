@@ -53,10 +53,11 @@ class SegmentationGUI(tk.Frame):
         self.show_image(master)
 
         self.set_user_input_controls()
+
+        ###Fix later, variable declaration should not be in init
+        self.manpolypoints = []
         return
   
-
-
 
     def load_canvas_mip(self,master):
         pass
@@ -182,6 +183,7 @@ class SegmentationGUI(tk.Frame):
             self.autosegment_button = tk.Button(self.control_window, text="Autosegment Image", command=self.auto_segment_polygons)
             self.autosegment_button.grid(row=14, column=3, padx=10, pady=5)
 
+
     def open_seg_file_select(self):
         """
         Update file 1 path entry widget with selected path name.
@@ -190,6 +192,7 @@ class SegmentationGUI(tk.Frame):
         self.seg_algo_path_e.delete(0, tk.END)
         self.seg_algo_path_e.insert(0, filepath)
         #self.set_seg_algo()
+
 
     def show_image(self, event=None):
         ''' Show image on the Canvas '''
@@ -236,6 +239,7 @@ class SegmentationGUI(tk.Frame):
                                             anchor='nw', image=imagetk)
             self.bgimage= self.canvas.lower(self.imageid)  # set image into background
             self.canvas.imagetk = imagetk  # keep an extra reference to prevent garbage-collection
+
 
     def reset_canvas(self):
         """Reset the image to its initial state"""
@@ -332,14 +336,275 @@ class SegmentationGUI(tk.Frame):
         self.polygons = temp_polygons
         self.update_nuc_count()
 
-    def add_polygon(self):
-        pass
-    def remove_polygon(self):
-        pass
-    def man_poly_point(self):
-        pass
-    def man_poly_point_complete(self):
-        pass
+    def draw_added_polygons(self,nuc_cntrs):
+        print(nuc_cntrs)
+        prev_column_value = None
+        coordinates = []
+        cell_index_table = [0, 0]
+        for row in nuc_cntrs:
+            if prev_column_value is None or row[0] == prev_column_value:
+                temp_array = row[2:]
+                coordinates = np.hstack((coordinates, temp_array))
+            else:
+                new_row = [row[0], str(coordinates)]
+                cell_index_table = np.vstack((cell_index_table, new_row))
+                scaled_coordinates = [coord  if i % 2 == 0 else coord  for i, coord in
+                                    enumerate(coordinates)]
+                newindex = len(self.polygons) + 1
+                    
+
+            
+                self.draw_polygon(scaled_coordinates, newindex)  # Pass index to draw_polygon function
+                coordinates = row[2:]
+            prev_column_value = row[0]
+        scaled_coordinates = [coord if i % 2 == 0 else coord for i, coord in enumerate(coordinates)]
+        newindex = len(self.polygons) + 1
+        self.draw_polygon(scaled_coordinates, newindex)
+
+        self.add_p_event_processed = False
+
+
+    def add_polygon(self, event):
+        if self.ManPoly_toggle.get() == True: return
+        mousex = self.canvas.canvasx(event.x)
+        mousey = self.canvas.canvasy(event.y) 
+
+        # need to update this later, hardcoded filename with default segmentation 
+        masked_mip_path = os.path.join(cfg.SEG_PROCESSING_DIR, f"nucleus_threshold_img.tif")    
+
+        maskedmip = cv2.imread(masked_mip_path, cv2.IMREAD_GRAYSCALE)
+        crop_width, crop_height = 300, 300  # Crop pic size
+
+        scropx1 = max(0, int(mousex - crop_width * self.imscale // 2)) 
+        scropy1 = max(0, int(mousey - crop_height * self.imscale // 2))
+        scropx2 = min(maskedmip.shape[1], int(mousex + crop_width * self.imscale // 2))
+        scropy2 = min(maskedmip.shape[0], int(mousey + crop_height * self.imscale // 2))
+
+        print(f"six1_ {self.si_x1},{self.si_y1}")
+        smousex = event.x_root - self.canvas.winfo_rootx()
+        smousey = event.y_root - self.canvas.winfo_rooty()
+
+
+
+        bbcoords = self.canvas.coords(self.container)
+
+        if  self.imscale == 1.0:
+            print("NO ZOOM")
+            smousex = smousex*1/self.imscale + (max(bbcoords[0],self.si_x1))
+            smousey = smousey*1/self.imscale + (max(self.grey_image_offset_y,self.si_y1))
+        elif self.imscale > 1.0:
+            print("ZOOMED IN")
+            smousex = smousex*1/self.imscale + (max(self.grey_image_offset_x,self.si_x1*1/self.imscale))
+            smousey = smousey*1/self.imscale + (max(self.grey_image_offset_y,self.si_y1*1/self.imscale))
+        elif self.imscale < 1.0:
+            print("ZOOMED OUT")
+            smousex = ((smousex - max(0,self.grey_image_offset_x))*1/self.imscale) + self.si_x1*1/self.imscale
+            smousey = ((smousey - max(0,self.grey_image_offset_y))*1/self.imscale) + self.si_y1*1/self.imscale
+
+
+        socropx1 = max(0, int(smousex - (crop_width // 2))) 
+        socropy1 = max(0, int(smousey - (crop_height // 2)))
+        socropx2 = min(maskedmip.shape[0], int(smousex  + (crop_width // 2)))
+        socropy2 = min(maskedmip.shape[1], int(smousey  + (crop_height // 2)))
+
+        print(f"imscale {self.imscale}")
+        print(f"grey offset {self.grey_image_offset_x}, {self.grey_image_offset_y}")
+        print(f"mousepos {mousex},{mousey}")
+        print(f"smousepos {smousex},{smousey}")
+        print(f"scrop_ {scropx1},{scropy1},{scropx2},{scropy2}")
+        print(f"socrop {socropx1},{socropy1},{socropx2},{socropy2}")
+        print(f"Canvas position: x={event.x}, y={event.y}")
+        print(f"Screen position: x={event.x_root}, y={event.y_root}")
+        print(f"six1_{self.si_x1},{self.si_y1}")
+        print(f"bbox {self.canvas.coords(self.container)}")
+        canvas_position= [event.x,event.y]
+        screen_position= [event.x_root, event.y_root]
+
+       # self.canvas.create_rectangle(scropx1,scropy1,scropx2,scropy2, fill="", outline="white")
+
+        cropped_image = maskedmip[socropy1:socropy2, socropx1:socropx2]
+
+            #Save the cropped image
+        print("cropped")
+        cropfile_path = os.path.join(cfg.SEG_PROCESSING_DIR,"cropchunk.tif")
+        cv2.imwrite(cropfile_path, cropped_image) 
+
+
+
+        #Trace the cropped image
+        cropfile= cv2.imread(cropfile_path, cv2.IMREAD_GRAYSCALE)
+        contours, hierarchy = cv2.findContours(cropfile, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        #print(contours)
+        contoured_cropfile = cropfile.copy()
+        cv2.drawContours(contoured_cropfile, contours, -1, (0,255,0), 2, cv2.LINE_AA)
+
+        cont_cropfile_path = os.path.join(cfg.SEG_PROCESSING_DIR,"contour_cropchunk.tif")
+        cv2.imwrite(cont_cropfile_path, contoured_cropfile)
+
+        index = 1
+        isolated_count = 0
+        cluster_count = 0
+
+        arr_nucleus_contours = np.empty([1,4])
+
+        for cntr in contours:
+            epsilon = 0.001 * cv2.arcLength(cntr, True)
+            approx = cv2.approxPolyDP(cntr, epsilon, True)
+            n = approx.ravel() 
+            i = 0
+            for j in n : 
+                if(i % 2 == 0): 
+                    x = n[i]  
+                    y = n[i + 1] 
+                    #print(f"---{x},{y}")
+                    #Generate contours cooridinates array to pass into tkinter visualization
+                    arr_nucleus_contours = np.vstack((arr_nucleus_contours , [index,i,x,y]))
+                i += 1
+            index += 1
+        arr_nucleus_contours = np.delete(arr_nucleus_contours,(0),axis=0)
+
+        #print(len(arr_nucleus_contours))
+        print("_________________________")
+        if len(arr_nucleus_contours) <=0: 
+            print("no contours found")
+            self.add_p_event_processed = False
+            return
+        else: 
+
+            if  self.imscale == 1.0:
+                print("NO ZOOM")
+                xo = scropx1
+                yo = scropy1
+                ofx = 0
+                ofy = 0
+            elif self.imscale > 1.0:
+                print("ZOOMED IN")
+
+                cmousex = self.canvas.canvasx(event.x)
+                cmousey = self.canvas.canvasy(event.y)
+                xo = int(cmousex - crop_width * self.imscale // 2)
+                yo = int(cmousey - crop_height * self.imscale // 2)
+
+                #self.canvas.create_oval(xo-10,yo-10,xo+10,yo+10, fill="", outline="white")
+
+                
+                ofx = 0
+                ofy = 0
+
+                bbcoords = self.canvas.coords(self.container)
+                print (f"cmouse {cmousex},  -->{cmousex - crop_width*self.imscale // 2 }")
+
+                if bbcoords[0]<0 : 
+                    if (cmousex - crop_width*self.imscale // 2) < bbcoords[0]:
+                        print("lilx")
+                        ofx = (bbcoords[0])- (cmousex - crop_width*self.imscale // 2) 
+                if bbcoords[1]<0 : 
+                    print((cmousey - crop_height*self.imscale // 2))
+                    if (cmousey - crop_height*self.imscale // 2) < bbcoords[1]:
+                        print("lily")
+                        ofy = (bbcoords[1]) - (cmousey - crop_height*self.imscale // 2) 
+
+
+            elif self.imscale < 1.0:
+                print("ZOOMED OUT")
+                cmousex = self.canvas.canvasx(event.x)
+                cmousey = self.canvas.canvasy(event.y)
+                xo = int(cmousex - crop_width * self.imscale // 2)
+                yo = int(cmousey - crop_height * self.imscale // 2)
+
+              #  self.canvas.create_oval(xo-10,yo-10,xo+10,yo+10, fill="", outline="white")
+
+                
+                ofx = 0
+                ofy = 0
+
+                bbcoords = self.canvas.coords(self.container)
+                print (f"cmouse {cmousex},  -->{cmousex - crop_width*self.imscale // 2 }")
+                if bbcoords[0]>0 : 
+                    if cmousex - crop_width*self.imscale // 2 < bbcoords[0]:
+                        print("bigginx")
+                        ofx = (bbcoords[0]) - (cmousex - crop_width*self.imscale // 2) 
+                if bbcoords[1]>0 : 
+                    if cmousey - crop_height*self.imscale // 2 < bbcoords[1]:
+                        print("bigginy")
+                        ofy = (bbcoords[1]) - (cmousey - crop_height*self.imscale // 2) 
+
+
+
+                
+            for row in arr_nucleus_contours:
+                row[2] = row[2]*self.imscale + xo + ofx
+                row[3] = row[3]*self.imscale + yo + ofy
+
+
+
+            if len(arr_nucleus_contours) <= 0: 
+                print("No contours")
+                self.add_p_event_processed = False
+                return
+            else:
+                print("ADD POLYGON")
+                self.draw_added_polygons(arr_nucleus_contours)
+
+
+    def remove_polygon(self, event):
+        if self.ManPoly_toggle.get() == True: return
+        x = self.canvas.canvasx(event.x)
+        y = self.canvas.canvasy(event.y) 
+        item = self.canvas.find_closest(x, y)
+        if item and item[0] in (polygon[1] for polygon in self.polygons):
+            for polygon_index, (index, p, ilabel) in enumerate(self.polygons):
+                if p == item[0]:
+                    print(f"Deleted polygon {index}")
+                    self.canvas.delete(ilabel)
+                    self.canvas.delete(p)  
+                    print(f"polylenb {len(self.polygons)}")
+                    del self.polygons[polygon_index]
+                    print(f"polylena {len(self.polygons)}")
+                    
+                    for row in self.polygons:
+                        print(row)
+                    break  # Break the loop after finding the polygon to delete
+        if item and item[0] in (polygon[2] for polygon in self.polygons):
+            for polygon_index, (index, p, ilabel) in enumerate(self.polygons):
+                if ilabel == item[0]:
+                    print(f"Deleted polygon {index}")
+                    self.canvas.delete(ilabel)
+                    self.canvas.delete(p)  
+                    print(f"polylenb {len(self.polygons)}")
+                    del self.polygons[polygon_index]
+                    print(f"polylena {len(self.polygons)}")
+                    for row in self.polygons:
+                        print(row)
+                    break  # Break the loop after finding the polygon to delete
+        self.update_nuc_count()
+   
+    def man_poly_point(self,event):
+        if self.ManPoly_toggle.get() == False: return
+        x = self.canvas.canvasx(event.x)
+        y = self.canvas.canvasy(event.y) 
+        #x,y = event.x, event.y
+        self.manpolypoints.append((x,y))
+        self.draw_mantemppoly()
+
+    def man_poly_point_complete(self, event):
+        if self.ManPoly_toggle.get() == False: return
+        print("COMPLETE MANUAL POLYGON")
+        if len(self.manpolypoints) > 2:
+            #self.canvas.create_line(self.manpolypoints, fill='white', width=2, tags='tempmanpolygon')
+            self.canvas.delete('tempmanpolygon')
+            newindex = len(self.polygons) + 1
+            self.draw_polygon(self.manpolypoints, newindex)
+            self.manpolypoints = []
+
+
+    def draw_mantemppoly(self):
+        # Redraw polygon based on current points
+        self.canvas.delete('tempmanpolygon')
+        if len(self.manpolypoints) > 1:
+            self.canvas.create_line(self.manpolypoints, fill='green', width=2, tags='tempmanpolygon')
+          
+
     def update_nuc_count(self):
         """
         Updates GUI polygon count label on the control window.
