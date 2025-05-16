@@ -12,6 +12,7 @@ VERSION = version
 BASE_DIR = None
 OUTPUT_DIR = None
 PROCESSING_DIR = None
+SEG_PROCESSING_DIR = None # segmentation folder to store analysis images
 LOGS_DIR = None
 
 F1_PROCESSING_DIR = None
@@ -25,8 +26,6 @@ F2_C_MIP_DIR_DICT = {}
 
 F1_C_ZSLICE_DIR_DICT = {} # key channel name (string) : value is path (string)
 F2_C_ZSLICE_DIR_DICT = {}
-
-SEG_PROCESSING_DIR = None # segmentation folder to store analysis images
 
 # Input XYZ file paths 
 F1_PATH = None
@@ -62,7 +61,10 @@ OFFSET_Y = None # in pixels
 OFFSET_Z = None # in z-slices
 
 # Nuclei segmentation algorithm script path
-NUC_SEG_ALGO_PATH = "zFISHer/processing/segmentation/zFISHer_basic_nucseg.py"
+#NUC_SEG_ALGO_PATH = "zFISHer/processing/segmentation/zFISHer_basic_nucseg.py"
+SEG_ALGO_DIR = None # Directory housing the nuclei segmentation scripts
+NUC_SEG_ALGO_PATH = None
+NUC_SEG_DEFAULT_SCRIPT = "zFISHer_basic_nucseg.py" # change if you put another script in segmentation folder that you want to use as autosegmentation when workflow module initializes
 
 # Nuclei segmentation finalization
 SEG_NUC_COUNT = None    # Number of segmented nuclei

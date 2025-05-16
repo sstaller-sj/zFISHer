@@ -138,6 +138,8 @@ class ProcessingGUI():
 
         # Define segmentation processing folder
             cfg.SEG_PROCESSING_DIR = os.path.join(cfg.PROCESSING_DIR,"SEGMENTATION")
+        # Define segmentation algorithm directory
+        #    cfg.SEG_ALGO_DIR = os.path.join(cfg.BASE_DIR,"/zFISHer/processing/segmentation")
             
         mkdir.make_processing_directories()
 

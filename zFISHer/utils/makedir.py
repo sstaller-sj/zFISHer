@@ -21,13 +21,23 @@ def set_core_dir_values() -> None:
     PROCESSING_DIR = os.getenv("PROCESSING_DIR",os.path.join(BASE_DIR, OUTPUT_DIR, "processing"))
     LOGS_DIR = os.getenv("LOGS_DIR",os.path.join(BASE_DIR, OUTPUT_DIR, "logs"))
 
-  
+
+
+    # This sets the path to the segmentation directory
+    # Get absolute path to the directory where the current file lives
+    CURRENT_FILE_DIR = os.path.dirname(os.path.abspath(__file__))
+    # Go up to the zFISHer module root
+    MODULE_ROOT = os.path.abspath(os.path.join(CURRENT_FILE_DIR, ".."))
+    # Then build path to processing/segmentation
+    SEG_ALGO_DIR = os.path.join(MODULE_ROOT, "processing", "segmentation")
 
 
     #cfg.BASE_DIR = BASE_DIR
+    cfg.BASE_DIR = BASE_DIR
     cfg.OUTPUT_DIR = OUTPUT_DIR
     cfg.PROCESSING_DIR = PROCESSING_DIR
     cfg.LOGS_DIR = LOGS_DIR
+    cfg.SEG_ALGO_DIR = SEG_ALGO_DIR
     #cfgmgr.set_config_value("BASE_DIR",BASE_DIR)    #TODO REMOVE
     #cfgmgr.set_config_value("OUTPUT_DIR",OUTPUT_DIR)#TODO REMOVE
     #cfgmgr.set_config_value("PROCESSING_DIR",PROCESSING_DIR)#TODO REMOVE
