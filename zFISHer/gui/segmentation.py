@@ -44,6 +44,7 @@ class SegmentationGUI(tk.Frame):
         self.master = master
         self.switch = switch_to_new_gui  # Save the function
 
+        
         self.load_canvas_mip(master)
         self.setup_window(master)
 
@@ -171,11 +172,15 @@ class SegmentationGUI(tk.Frame):
             
             self.seg_algo_path_e = tk.Entry(self.control_window, width=50)
             self.seg_algo_path_e.grid(row=12, column=2, sticky="ew", padx=10, pady=5)
+             # Handle None or invalid NUC_SEG_ALGO_PATH
+            self.set_default_algorithm()
+            algo_path = cfg.NUC_SEG_ALGO_PATH if cfg.NUC_SEG_ALGO_PATH is not None else ""
+            self.seg_algo_path_e.insert(0, algo_path)  # Set default algorithm path
 
             self.seg_algo_path_button = tk.Button(self.control_window, text="Browse", command=self.open_seg_file_select)
             self.seg_algo_path_button.grid(row=12, column=3, padx=10, pady=5)
 
-            self.seg_algo_path_e.insert(0, cfg.NUC_SEG_ALGO_PATH)  #set default algorithm path
+            #self.seg_algo_path_e.insert(0, cfg.NUC_SEG_ALGO_PATH)  #set default algorithm path
 
             self.remove_all_button = tk.Button(self.control_window, text="Remove All Polygons", command=self.remove_all_polygons)
             self.remove_all_button.grid(row=13, column=3, padx=10, pady=5)
@@ -183,6 +188,23 @@ class SegmentationGUI(tk.Frame):
             self.autosegment_button = tk.Button(self.control_window, text="Autosegment Image", command=self.auto_segment_polygons)
             self.autosegment_button.grid(row=14, column=3, padx=10, pady=5)
 
+    def set_default_algorithm(self):
+        if cfg.NUC_SEG_DEFAULT_SCRIPT is not None:
+            algo_path = os.path.join(cfg.SEG_ALGO_DIR, cfg.NUC_SEG_DEFAULT_SCRIPT)
+            print(f"BASE DIR {cfg.BASE_DIR}")
+            print(f"ALGORITHM PATH {algo_path}")
+            if os.path.isfile(algo_path):
+                self.seg_algo_path_e.delete(0, 'end')
+                self.seg_algo_path_e.insert(0, algo_path)
+                cfg.NUC_SEG_ALGO_PATH = algo_path
+                print(f"DEFAULT NUC SEG ALGO PATH FOUND: {cfg.NUC_SEG_ALGO_PATH} ")
+                return
+
+        # If script is None or file does not exist
+        print("NO SEGMENTATION ALGORITHM FOUND")
+        self.seg_algo_path_e.delete(0, 'end')
+        self.seg_algo_path_e.insert(0, "NO SEGMENTATION ALGORITHM FOUND")
+        cfg.NUC_SEG_ALGO_PATH = None
 
     def open_seg_file_select(self):
         """
@@ -191,8 +213,29 @@ class SegmentationGUI(tk.Frame):
         filepath = filedialog.askopenfilename()
         self.seg_algo_path_e.delete(0, tk.END)
         self.seg_algo_path_e.insert(0, filepath)
-        #self.set_seg_algo()
+        self.set_seg_algo()
 
+    def set_seg_algo(self):
+        """
+        Set cfg.NUC_SEG_ALGO_PATH to the path in the seg_algo_path_e Entry widget.
+        """
+        #import os  # Ensure os is available for path validation
+        filepath = self.seg_algo_path_e.get().strip()  # Get and clean the entered path
+        
+        if not filepath:
+            #self.logger.warning("No segmentation algorithm path selected")
+            print(f"No segmentation algorithm path selected")
+            return
+        
+        if not os.path.exists(filepath):
+            #self.logger.error(f"Selected segmentation script does not exist: {filepath}")
+            print(f"Selected segmentation script does not exist: {filepath}")
+            return
+        
+        cfg.NUC_SEG_ALGO_PATH = filepath
+        #self.logger.info(f"Set NUC_SEG_ALGO_PATH to {filepath}")
+        algo_path = cfg.NUC_SEG_ALGO_PATH if cfg.NUC_SEG_ALGO_PATH is not None else ""
+        self.seg_algo_path_e.insert(0, algo_path)  # Set default algorithm path
 
     def show_image(self, event=None):
         ''' Show image on the Canvas '''
@@ -788,31 +831,26 @@ class SegmentationGUI(tk.Frame):
         pass
 
 
-    def segment_mips(self) -> List[Tuple[int, int]]:
-        """
-        Segments MIPs using the designated segmentation algorithm.
-        
-        Returns:
-            List of coordinate tuples representing segmented contours
-        """
+    def segment_mips(self):
         f1_seg_path = cfg.F1_SEG_C
-        nuclei_seg_script = cfg.NUC_SEG_ALGO_PATH
-        
+
         input_data = {"file_#": 1, "seg_c": f1_seg_path}
         print(f"Processing file: {input_data['seg_c']}")
-        print(f"Type of nuclei_seg_script: {type(nuclei_seg_script)}")
-        print(f"Value of nuclei_seg_script: {nuclei_seg_script}")
-        
-        # Verify script existence
-        import os
-        print(f"Script file exists: {os.path.exists(nuclei_seg_script)}")
+        print(f"Type of nuclei_seg_script: {type(cfg.NUC_SEG_ALGO_PATH)}")
+        print(f"Value of nuclei_seg_script: {cfg.NUC_SEG_ALGO_PATH}")
+
+        # Check if the segmentation script path is valid
+        if cfg.NUC_SEG_ALGO_PATH is None or not os.path.exists(cfg.NUC_SEG_ALGO_PATH):
+            print("NO VALID SEGMENTATION SCRIPT FOUND.")
+            return []
+
+        print(f"Script file exists: {os.path.exists(cfg.NUC_SEG_ALGO_PATH)}")
         print(f"Current working directory: {os.getcwd()}")
 
         try:
-            result = self._execute_segmentation_script(nuclei_seg_script, input_data)
+            result = self._execute_segmentation_script(cfg.NUC_SEG_ALGO_PATH, input_data)
             self.nuclei_contours = result.get("contours", [])
             print(f"Segmentation complete. Found {len(self.nuclei_contours)} contours")
-            print(self.nuclei_contours)
             return self.nuclei_contours
         except Exception as e:
             print(f"Segmentation failed: {e}")
