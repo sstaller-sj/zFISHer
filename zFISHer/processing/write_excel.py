@@ -76,6 +76,9 @@ class WriteExcel():
         ROIradii = aparams.kpchan_ROIradius_xbundle   
         coloctols = aparams.kpchan_coloc_xbundle
 
+        # Random colocalization percent
+        rand_coloc_perc = cfg.RAND_COLOC_PERCENT
+
         self.data1 = [
             ('DATE', str(currentdate)),
             ('AIP_VERSION#', str(versionnumber)),
@@ -88,7 +91,8 @@ class WriteExcel():
             ('File1_#Slices', str(f1slicecount)),
             ('File2_#Slices', str(f2slicecount)),
             ('Channel Radii(um)', str(ROIradii)),
-            ('Coloc Cutoffs(um)', str(coloctols))
+            ('Coloc Cutoffs(um)', str(coloctols)),
+            ('Random Colocalization %', str(rand_coloc_perc))
 
         ]
                         
