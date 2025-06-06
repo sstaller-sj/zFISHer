@@ -34,6 +34,7 @@ class CalculationsGUI(tk.Frame):
         self.max_z_finder()
         self.generate_ROI_pairs()
         self.coloc_parser()
+        self.random_coloc_calculation()
     
     def initialize_window(self, master):
         master.title("ZFISHER --- Calculations")
@@ -149,6 +150,9 @@ class CalculationsGUI(tk.Frame):
     
         print("FULL ROIS")
     def generate_ROI_pairs(self):
+        '''
+        Prepares an array from all ROIs that will be checked for colocalization
+        '''
         print("ROI pairs")
         self.pairs_array = []
         
@@ -245,11 +249,11 @@ class CalculationsGUI(tk.Frame):
             same_file = False
         
         return r1_f,r2_f,same_file
-    def determine_r2_xy(self,r2_x_in, r2_y_in, r1_c, r2_c, same_channel, f2_offset_x, f2_offset_y):
-        if same_channel:
+    def determine_r2_xy(self,r2_x_in, r2_y_in, r1_c, r2_c, same_file, f2_offset_x, f2_offset_y):
+        if same_file:
                 x2 = r2_x_in
                 y2 = r2_y_in
-        elif not same_channel:
+        elif not same_file:
                 if r1_c == 1 and r2_c == 2:
                     x2 = r2_x_in + f2_offset_x
                     y2 = r2_y_in + f2_offset_y
@@ -268,9 +272,9 @@ class CalculationsGUI(tk.Frame):
     def coloc_parser(self):
             ### def reprocess_ROIs(all_ROIs_arr, f2_offset_x, f2_offset_y, f1_middle_Zslice, f2_middle_Zslice, c_coloc_dict):
             # Pair all the ROIs into a new array [ROI_1_info, ROI_2_info]
-            # [ROI #, Nuclei #, Channel, X_pos, Y_pos, Z_slice, Max Intensity Pixel Value (0-65536)]
-            #[file_id,channel,chanrad,chan_e,kpID,kpOvalID,f_kp_x,f_kp_y,nucInd,polyID,polyTextID]
-
+            #delete # [ROI #, Nuclei #, Channel, X_pos, Y_pos, Z_slice, Max Intensity Pixel Value (0-65536)]
+            # delete#[file_id,channel,chanrad,chan_e,kpID,kpOvalID,f_kp_x,f_kp_y,nucInd,polyID,polyTextID]
+            # delete#[file_id,channel,chanrad,chan_e,kpID,kpOvalID,kp_x,kp_y,nucInd,polyID,polyTextID, max_slice_index, max_intensity
             ROI_pairs = self.pairs_array
             f2_offset_x = self.x_offset
             f2_offset_y = self.y_offset
@@ -286,12 +290,15 @@ class CalculationsGUI(tk.Frame):
                 r2 = row[1]
                 
                 # Determine if it is the same file or different files
-                r1_c, r2_c, same_channel = self.same_file_check(r1[0],r2[0])
+                r1_file, r2_file, same_file = self.same_file_check(r1[0],r2[0])
 
                 # Get the X Y positions of each ROI
-                x1 = r1[3]
-                y1 = r1[4]
-                x2,y2 = self.determine_r2_xy(r2[6], r2[7], r1_c, r2_c, same_channel,f2_offset_x, f2_offset_y)
+                #file_id,channel,chanrad,chan_e,kpID,kpOvalID,kp_x,kp_y,nucInd,polyID,polyTextID, max_slice_index, max_intensity
+                x1 = r1[6]
+                y1 = r1[7]
+
+
+                x2,y2 = self.determine_r2_xy(r2[6], r2[7], r1_file, r2_file, same_file,f2_offset_x, f2_offset_y)
 
                 # Determine the x and y distance delta in microns
                 x_delta = (x2 - x1) * self.mpp
@@ -299,10 +306,10 @@ class CalculationsGUI(tk.Frame):
 
 
                 # Determine the Z slice delta between the two stacks
-                z1 = abs(r1[5])
-                z2 = abs(r1[5])
+                z1 = abs(r1[11])
+                z2 = abs(r2[11])
                 zslice_offset = self.calculate_z_offset(f1_middle_Zslice, f2_middle_Zslice)
-                z_delta = abs(r1[5] - (r2[5]+zslice_offset)) * self.z_spacing
+                z_delta = abs(r1[11] - (r2[11]+zslice_offset)) * self.z_spacing
 
                 # Calculate distance
                 distance = math.sqrt((x_delta)**2 + (y_delta)**2 + (z_delta)**2)
@@ -381,7 +388,156 @@ class CalculationsGUI(tk.Frame):
             aparams.yes_arr = yes_arr
             aparams.no_arr = no_arr
 
-            self.to_finish_analysis()
+            
+##############################
+##############################
+###-----RANDOM_COLOC_CALCULATIONS-----###
+    def rotate_xy(self,x,y):
+        width = 2048        # need to store in cfg metadata
+        height = 2044       # need to store in cfg metadata
+
+        # Center point of image for rotation
+        cx = width / 2  # = 2048 / 2 = 1024.0
+        cy = height / 2 # = 2044 / 2 = 1022.0
+
+        # Translate point to origin
+        x_shifted = x - cx
+        y_shifted = y - cy
+
+        # Rotate 90° clockwise
+        x_rotated = y_shifted
+        y_rotated = -x_shifted
+
+        # Translate back
+        x_new = x_rotated + cx
+        y_new = y_rotated + cy
+
+        return x_new,y_new
+    
+    def rot_maxZ_finder(self, r2, x_rot, y_rot):
+        file_id,channel,chanrad,chan_e,kpID,kpOvalID,kp_x,kp_y,nucInd,polyID,polyTextID, max_slice_index, max_intensity = r2
+        chanroi_radius = chanrad
+        pixelradius = math.ceil(chanroi_radius * self.ppm)
+        radius = pixelradius
+        center = int(x_rot), int(y_rot)
+
+        if file_id == 1:
+            chan_slices = self.f1_z_slice_dict[channel]
+        elif file_id == 2:
+            chan_slices = self.f2_z_slice_dict[channel]
+
+        max_intensity =-1
+        max_slice_index = ''
+        for sliceindex, slice in enumerate(chan_slices, start=1):
+            print(f"slice ind {sliceindex}")
+            gray_image_slice = np.array(chan_slices[sliceindex-1])
+            y, x = np.ogrid[:gray_image_slice.shape[0], :gray_image_slice.shape[1]]
+            mask_circle = (x - center[0]) ** 2 + (y - center[1]) ** 2 > radius ** 2
+            gray_image_slice[mask_circle] = 0  # Set the area outside the circle to 0
+            roi = gray_image_slice
+            
+            max_value = np.max(roi)
+            print(f" SLICE {sliceindex} - {max_value}")
+
+            if max_value > max_intensity:
+                max_slice_index = sliceindex
+                max_intensity = max_value
+            print(f"max intensity slice {max_slice_index}")
+            print(f"max intensity slice counter {max_intensity}")  
+
+        return max_slice_index
+        
+        
+    def random_coloc_calculation(self):
+        ROI_pairs = self.pairs_array
+        f2_offset_x = self.x_offset
+        f2_offset_y = self.y_offset
+        f1_middle_Zslice = int(cfg.F1_Z_NUM/2)
+        f2_middle_Zslice = int(cfg.F2_Z_NUM/2)
+
+        yes_arr = []
+        no_arr = []
+
+        
+        for row in ROI_pairs:
+            # file_id,channel,chanrad,chan_e,kpID,
+            # kpOvalID,kp_x,kp_y,nucInd,polyID, 
+            # polyTextID,max_slice_index, max_intensity
+            r1 = row[0]
+            r2 = row[1]
+
+            # Determine if it is the same file or different files
+            r1_file, r2_file, same_file = self.same_file_check(r1[0],r2[0])
+
+            #if r1[0] == r2[0]: continue  # ignore if same file
+            if r1[0] == r2[0] and r1[1] == r2[1]: continue # ignore if same file channel
+            if r1[8] != r2[8]: continue # ignore if not same nucleus
+
+            # Get x,y coordinates from file 1
+            x1 = r1[6]
+            y1 = r1[7]
+
+            # Rotate stored r2 x,y positions in original image
+            x2_rot,y2_rot = self.rotate_xy(r2[6],r2[7])
+
+            # Calculate r2 x,y positions in offset space
+            x2,y2 = self.determine_r2_xy(x2_rot, y2_rot, r1_file, r2_file, same_file,f2_offset_x, f2_offset_y)
+
+            # Find z-slice for r2 rotated positions
+            #r2_rot_z_sliceIND = self.rot_maxZ_finder(r2,x2_rot,y2_rot)
+
+            ###CALCULATE DELTAS###
+            x2,y2 = self.determine_r2_xy(r2[6], r2[7], r1_file, r2_file, same_file,f2_offset_x, f2_offset_y)
+            #X
+            x_delta = (x2 - x1) * self.mpp
+            #Y
+            y_delta = (y2 - y1) * self.mpp
+            #Z
+            zslice_offset = self.calculate_z_offset(f1_middle_Zslice, f2_middle_Zslice)
+            z_delta = abs(r1[11] - (r2[11]) * self.z_spacing)
+
+            # Calculate distance
+            distance = math.sqrt((x_delta)**2 + (y_delta)**2 + (z_delta)**2)
+
+            # Determine if it is a colocalization
+            f1_coloc_cutoff = 1#r1[3]
+            f2_coloc_cutoff = 1#r2[3]
+
+            coloc_cutoff = min(f1_coloc_cutoff,f2_coloc_cutoff)
+            
+            newrow = [r1,r2]
+            if distance <= coloc_cutoff:
+                is_coloc = True
+                yes_arr.append(newrow)
+                
+            elif distance > coloc_cutoff:
+                is_coloc = False
+                no_arr.append(newrow)
+            
+            print(f"{distance} - {coloc_cutoff} - {is_coloc} ")
+
+        #percent_coloc = len(yes_arr) / (len(yes_arr) + len(no_arr))
+        total = len(yes_arr) + len(no_arr)
+        if total == 0:
+            print("No ROI pairs processed. Skipping percent_coloc calculation.")
+            percent_coloc = 0
+        else:
+            percent_coloc = len(yes_arr) / total
+
+
+        #file_id,channel,chanrad,chan_e,kpID,kpOvalID,kp_x,kp_y,nucInd,polyID,polyTextID, max_slice_index, max_intensity
+        print("$$$$$$$$$$$$$RANDOM COLOC CALCULATIONS$$$$$$$$$$$$$$$$$$$$$$$$$")
+        print(ROI_pairs)
+        print("-------------")
+        print(len(yes_arr))
+        print(len(no_arr))
+        print(percent_coloc)
+
+        cfg.RAND_COLOC_PERCENT = percent_coloc
+
+        self.to_finish_analysis()
+
+##############################
 ##############################
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
