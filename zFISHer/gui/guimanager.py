@@ -2,6 +2,7 @@ import tkinter as tk
 from zFISHer.gui.tktheme import apply_theme
 from zFISHer.gui.welcome import WelcomeWindowGUI
 from zFISHer.gui.inputs import FileInputGUI
+from zFISHer.gui.inputshandling import InputsHandlingGUI
 from zFISHer.gui.process import ProcessingGUI
 from zFISHer.gui.registrationXY import RegistrationXYGUI
 from zFISHer.gui.registrationZ import RegistrationZGUI
@@ -38,8 +39,17 @@ class GuiManager:
 
 
     def to_inputs_gui(self):
-        """Switch to the File Input GUI."""
-        self.switch_to_gui(FileInputGUI, self.to_processing_gui)
+        """
+        Switch to the File Input GUI.
+        """
+        self.switch_to_gui(FileInputGUI, self.to_inputs_handling_gui)
+
+
+    def to_inputs_handling_gui(self):
+        """
+        Switch to the Inputs Handling GUI.
+        """
+        self.switch_to_gui(InputsHandlingGUI,self.to_inputs_gui,self.to_processing_gui)
 
 
     def to_processing_gui(self):

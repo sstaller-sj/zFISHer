@@ -3,6 +3,7 @@ from zFISHer import version
 
 """
 Holds all data to be referenced and updated across modules.
+WARNING: EDIT THIS FILE AT YOUR OWN PERIL.
 """
 
 # Version of the zFISHer software
@@ -70,7 +71,8 @@ NUC_SEG_DEFAULT_SCRIPT = "zFISHer_basic_nucseg.py" # change if you put another s
 SEG_NUC_COUNT = None    # Number of segmented nuclei
 SEG_NUC_POLYGONS = []   # array contain [index, i, x, y] index is polygon id, i is coord index within a polygon id
 
-
-
 # Random colocalization value
 RAND_COLOC_PERCENT = None   # During calculations how many ROI pairs between two files randomly colocalize when File 2 ROI XYZ is rotated 90deg XY
+
+# Channel Metadata
+CH_METADATA = None
