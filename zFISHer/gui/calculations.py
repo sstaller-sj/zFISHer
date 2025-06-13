@@ -116,7 +116,7 @@ class CalculationsGUI(tk.Frame):
         # Populate the File 1 dictionary
         for i,c in enumerate(self.f1_cs):
             c_zslice_arr = []
-            f1_zslices_dir = os.path.join(self.processing_dir,self.f1_ntag,c,"z_slices")
+            f1_zslices_dir = os.path.join(self.processing_dir,self.f1_ntag,c,"Z_SLICES")
             slices = os.listdir(f1_zslices_dir)
             sorted_slices = sorted(slices, key=self.slice_sort_key)
             for s in sorted_slices:
@@ -128,7 +128,7 @@ class CalculationsGUI(tk.Frame):
         # Populate the File 2 dictionary
         for i,c in enumerate(self.f2_cs):
             c_zslice_arr = []
-            f2_zslices_dir = os.path.join(self.processing_dir,self.f2_ntag,c,"z_slices")
+            f2_zslices_dir = os.path.join(self.processing_dir,self.f2_ntag,c,"Z_SLICES")
             slices = os.listdir(f2_zslices_dir)
             sorted_slices = sorted(slices, key=self.slice_sort_key)
             for s in sorted_slices:
