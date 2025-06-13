@@ -32,6 +32,35 @@ class WriteExcel():
         self.noncolocalized_generator() #TAB4 - NONCOLOCALIZED ROIS
         self.colocalized_generator() #TAB5 - COLOZALIZED ROIS
         self.arrows_generator() #TAB6 - COLOZALIZED ROIS
+        self.channel_metadata_generator()
+
+    def channel_metadata_generator(self):
+        self.data7 = []
+
+        # Combine all channels with unique keys like base:ch0 and moving:ch0
+        all_channels = {}
+        for role in ["fixed", "moving"]:
+            for ch_name, metadata in cfg.CH_METADATA.get(role, {}).items():
+                unique_key = f"{ch_name}:{role}:"
+                all_channels[unique_key] = metadata
+
+        # Collect all unique metadata keys
+        all_keys = set()
+        for ch_data in all_channels.values():
+            all_keys.update(ch_data.keys())
+        all_keys = sorted(all_keys)  # Optional: keep keys sorted
+
+        # First row: header with unique channel names
+        header = ["Metadata Key"] + list(all_channels.keys())
+        self.data7.append(header)
+
+        # Each row corresponds to one metadata key
+        for key in all_keys:
+            row = [key]
+            for ch in all_channels.keys():
+                val = all_channels[ch].get(key, "")
+                row.append(val)
+            self.data7.append(row)
 
         #TAB 1 - METADATA
         #max_length_data1 = len(self.data1)
@@ -53,7 +82,7 @@ class WriteExcel():
        # max_length_data5 = len(self.data5)
        # self.data5_padded = {key: value + [None] * (max_length_data5 - len(value)) for key, value in enumerate(self.data5)}
 
-        self.writesheetwb(self.data1,self.data2,self.data3,self.data4,self.data5,self.data6)
+        self.writesheetwb(self.data1,self.data2,self.data3,self.data4,self.data5,self.data6,self.data7)
 
     def metadata_generator(self):   #TAB 1
         #TAB 1
@@ -276,7 +305,7 @@ class WriteExcel():
             self.data6.append(temprow)
 
 
-    def writesheetwb(self, data1, data2,data3, data4, data5,data6):
+    def writesheetwb(self, data1, data2,data3, data4, data5,data6,data7):
         wb = Workbook()
         # Create a new Workbook
 
@@ -286,25 +315,29 @@ class WriteExcel():
         for row in data1:
             ws1.append(row)
 
-        ws2 = wb.create_sheet(title="Channel ROI per Nucleus")
-        for row in data2:
+        ws2 = wb.create_sheet(title="Channel Metadata")
+        for row in data7:
             ws2.append(row)
 
-        ws3 = wb.create_sheet(title="ALL ROIs")
-        for row in data3:
+        ws3 = wb.create_sheet(title="Channel ROI per Nucleus")
+        for row in data2:
             ws3.append(row)
 
-        ws4 = wb.create_sheet(title="NonColocalized ROIs")
-        for row in data4:
+        ws4 = wb.create_sheet(title="ALL ROIs")
+        for row in data3:
             ws4.append(row)
 
-        ws5 = wb.create_sheet(title="Colocalized ROIs")
-        for row in data5:
+        ws5 = wb.create_sheet(title="NonColocalized ROIs")
+        for row in data4:
             ws5.append(row)
 
-        ws6 = wb.create_sheet(title="Arrows")
-        for row in data6:
+        ws6 = wb.create_sheet(title="Colocalized ROIs")
+        for row in data5:
             ws6.append(row)
+
+        ws7 = wb.create_sheet(title="Arrows")
+        for row in data6:
+            ws7.append(row)
 
         output_dir = cfg.OUTPUT_DIR
         file_name = 'AIP_output.xlsx'

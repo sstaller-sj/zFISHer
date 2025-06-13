@@ -17,7 +17,7 @@ def start_app() -> None:
     """
 
     mkdir.set_core_dir_values()
-    mkdir.make_output_directories
+    #mkdir.make_output_directories
     manager = GuiManager()
     manager.to_welcome_gui()
     manager.start_gui()

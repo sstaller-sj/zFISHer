@@ -6,7 +6,7 @@ from tkinter import ttk
 from tkinter import filedialog
 
 import cv2
-from nd2reader import ND2Reader
+#from nd2reader import ND2Reader
 
 #import zFISHer.config.config_manager as cfgmgr #TODO REMOVE
 import zFISHer.utils.makedir as mkdir
@@ -38,7 +38,7 @@ class ProcessingGUI():
         self.switch = switch_to_new_gui
 
         self.setup_window(master)
-        self.create_processing_directories()
+        #self.create_processing_directories()
         #Populate z-slice directories
         self.status_l.config(text="Slicing Z stack of all channels...")
         self.master.update()
@@ -154,6 +154,7 @@ class ProcessingGUI():
         self.master.update()
         #
         zslicer.slice_stack(cfg.F1_PATH,1)
+
         self.status_l.config(text="Slicing Z stack of file 2")
         self.master.update()
         zslicer.slice_stack(cfg.F2_PATH,2)

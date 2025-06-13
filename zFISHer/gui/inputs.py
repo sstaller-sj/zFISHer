@@ -1,304 +1,241 @@
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog, ttk
+import os
 
 import zFISHer.utils.config as cfg
-#import zFISHer.config.config_manager as cfgmgr
-from zFISHer.gui.logger import Logger
+import zFISHer.utils.makedir as mkdir
 import zFISHer.processing.process_nd2 as process_nd2
 
-"""
-User supplies path to the two XYZ image stacks to use for analysis.
-"""
 
-#TODO Incorporate logic to handle XYZC TIFF stack inputs
-
-class FileInputGUI():
-    """
-    Window that allows user to input the the two XYZ stacks and displays file information.
-    """
-    
-
+class FileInputGUI:
     def __init__(self, master, switch_to_new_gui):
-        """
-        Initialize the window for user.
-        """
-
         self.master = master
         self.switch = switch_to_new_gui
+        self.f1_valid = False
+        self.f2_valid = False
 
-        self.setup_window(master)
-        self.set_initial_filepaths()
-    
+        self.setup_window()
 
-    def setup_window(self,master)->None:
-        """
-        Builds the GUI window and populates with widgets.
+    def setup_window(self):
+        self.master.title("zFISHer — Select Input Files")
 
-        Args:
-        master (tkinter.Toplevel) : frame passed by GUImanager to build GUI.
-        """
+        tk.Label(self.master, text="Select Fixed and Moving Image Files", font=("Helvetica", 16, "bold")).pack(pady=10)
 
-        # Window title
-        self.master.title("zFISHer --- Inputs Selection")
+        main_frame = tk.Frame(self.master)
+        main_frame.pack(padx=10, pady=10)
 
-        self.create_file_select_panel(master)
-        self.create_options_panel(master)
+        self.fixed_frame = tk.LabelFrame(main_frame, text="Fixed Image")
+        self.fixed_frame.grid(row=0, column=0, padx=10, sticky="n")
 
-        # Finish button
-        self.set_button = tk.Button(master, text="FINALIZE INPUTS", command=self.finalize_inputs)
-        self.set_button.grid(row=5, column=0, columnspan=3, pady=20)
+        self.moving_frame = tk.LabelFrame(main_frame, text="Moving Image")
+        self.moving_frame.grid(row=0, column=1, padx=10, sticky="n")
 
+        self.build_file_section(
+            self.fixed_frame,
+            is_fixed=True,
+            tag_default="File1",
+            open_file_callback=self.open_file_1
+        )
 
-    def create_file_select_panel(self, master) -> None:
-        """
-        Create panel for selected the two input files.
+        self.build_file_section(
+            self.moving_frame,
+            is_fixed=False,
+            tag_default="File2",
+            open_file_callback=self.open_file_2
+        )
 
-        Args:
-        master (Tk.toplevel) : tkinter parent frame to build GUI in from GUImanager.
-        """
+        self.finalize_btn = tk.Button(self.master, text="Finalize Inputs", command=self.finalize_inputs, state=tk.DISABLED)
+        self.finalize_btn.pack(pady=20)
 
-        # Configure grid layout
-        for i in range(6):  # Adjust to match the number of rows
-            self.master.grid_rowconfigure(i, weight=1)
-        for j in range(3):  # Adjust to match the number of columns
-            self.master.grid_columnconfigure(j, weight=1)
+    def build_file_section(self, frame, is_fixed, tag_default, open_file_callback):
+        prefix = "f1" if is_fixed else "f2"
 
-        # Header label
-        self.header_l = tk.Label(master, text="Select nd2 Files to be Analyzed", font=("Helvetica", 16, "bold"))
-        self.header_l.grid(row=0, column=0, columnspan=3, sticky="nsew", pady=10)
+        # Path
+        path_row = tk.Frame(frame)
+        path_row.pack(pady=5)
+        tk.Label(path_row, text="PATH:").pack(side=tk.LEFT)
+        entry = tk.Entry(path_row, width=35)
+        entry.pack(side=tk.LEFT, padx=(5, 0))
+        tk.Button(path_row, text="Browse", command=open_file_callback).pack(side=tk.LEFT, padx=(5, 0))
+        setattr(self, f"{prefix}_path_e", entry)
 
-        # File 1 widgets
-        self.f1_l = tk.Label(master, text="FILE 1 (FIXED):")
-        self.f1_l.grid(row=1, column=0, sticky="e", padx=10, pady=5)
+        # Nametag
+        tag_row = tk.Frame(frame)
+        tag_row.pack(pady=(2, 5))
+        tk.Label(tag_row, text="NAMETAG:").pack(side=tk.LEFT)
+        tag_var = tk.StringVar(value=tag_default)
+        tag_entry = tk.Entry(tag_row, textvariable=tag_var, width=30)
+        tag_entry.pack(side=tk.LEFT, padx=(5, 0))
+        setattr(self, f"{prefix}_tag_var", tag_var)
 
-        self.f1_path_e = tk.Entry(master, width=50)
-        self.f1_path_e.grid(row=1, column=1, sticky="ew", padx=10, pady=5)
+        # Registration Channel (start empty)
+        reg_row = tk.Frame(frame)
+        reg_row.pack(pady=(0, 2))
+        tk.Label(reg_row, text="XY 2D Registration Channel:").pack(side=tk.LEFT)
+        reg_channel_var = tk.StringVar()
+        reg_channel = ttk.Combobox(reg_row, values=[], state="readonly", width=25, textvariable=reg_channel_var)
+        # No default selection here, so no .current()
+        reg_channel.pack(side=tk.LEFT, padx=(5, 0))
+        setattr(self, f"{prefix}_reg_channel", reg_channel)
 
-        self.f1_button = tk.Button(master, text="Browse", command=self.open_file_1)
-        self.f1_button.grid(row=1, column=2, padx=10, pady=5)
+        # Segmentation Channel (start empty)
+        seg_row = tk.Frame(frame)
+        seg_row.pack(pady=(0, 10))
+        tk.Label(seg_row, text="Nuclei Segmentation Channel:").pack(side=tk.LEFT)
+        seg_channel_var = tk.StringVar()
+        seg_channel = ttk.Combobox(seg_row, values=[], state="readonly", width=25, textvariable=seg_channel_var)
+        # No default selection here
+        seg_channel.pack(side=tk.LEFT, padx=(5, 0))
+        setattr(self, f"{prefix}_seg_channel", seg_channel)
 
-        # File 2 widgets
-        self.f2_l = tk.Label(master, text="FILE 2 (MOVING):")
-        self.f2_l.grid(row=2, column=0, sticky="e", padx=10, pady=5)
+        # Divider
+        divider = tk.Frame(frame, height=2, bd=1, relief=tk.SUNKEN)
+        divider.pack(fill=tk.X, pady=5)
 
-        self.f2_path_e = tk.Entry(master, width=50)
-        self.f2_path_e.grid(row=2, column=1, sticky="ew", padx=10, pady=5)
+        # Info Labels
+        path_label = tk.Label(frame, text="PATH: —")
+        path_label.pack()
+        name_label = tk.Label(frame, text="NAME: —")
+        name_label.pack()
+        type_label = tk.Label(frame, text="TYPE: —")
+        type_label.pack()
+        tag_label = tk.Label(frame, text=f"NAMETAG: {tag_default}")
+        tag_label.pack()
+        reg_label = tk.Label(frame, text="REGISTRATION CHANNEL: —")
+        reg_label.pack()
+        seg_label = tk.Label(frame, text="SEGMENTATION CHANNEL: —")
+        seg_label.pack()
 
-        self.f2_button = tk.Button(master, text="Browse", command=self.open_file_2)
-        self.f2_button.grid(row=2, column=2, padx=10, pady=5)
-    
+        # Traces to update labels on changes
+        tag_var.trace_add("write", lambda *args: tag_label.config(text=f"NAMETAG: {tag_var.get() or '—'}"))
+        reg_channel_var.trace_add("write", lambda *args: reg_label.config(text=f"REGISTRATION CHANNEL: {reg_channel_var.get() or '—'}"))
+        seg_channel_var.trace_add("write", lambda *args: seg_label.config(text=f"SEGMENTATION CHANNEL: {seg_channel_var.get() or '—'}"))
 
-    def create_options_panel(self, master) -> None:
-        """
-        Create panel to the user define choices for analysis
-
-        Args:
-        master (Tk.toplevel) : tkinter parent frame to build GUI in from GUImanager.
-        """
-
-        self.options_frame = tk.Frame(master)
-        self.options_frame.grid(row=1, column=10)
-
-        # FRAME FILE HEADERS
-        f1_header = tk.Label(self.options_frame, text="FILE 1 (FIXED IMAGE):")
-        f1_header.grid(row=2, column=5, padx=10, pady=5)
-        f2_header = tk.Label(self.options_frame, text="FILE 2 (MOVING IMAGE):")
-        f2_header.grid(row=2, column=10, padx=10, pady=5)
-
-
-        # FILE NAMETAG ENTRY
-        ntag_description = tk.Label(self.options_frame, text="File Nametag:")
-        ntag_description.grid(row=4, column=2, sticky="e", padx=10, pady=5)
-
-        self.f1_ntag_e = tk.Entry(self.options_frame, width=20)
-        self.f1_ntag_e.grid(row=4, column=5, padx=10, pady=5)
-        self.f1_ntag_e.insert(0, "F1")
-        self.f2_ntag_e = tk.Entry(self.options_frame, width=20)
-        self.f2_ntag_e.grid(row=4, column=10, padx=10, pady=5)
-        self.f2_ntag_e.insert(0, "F2")
-
-        # FILE REG CHANNEL SELECTION
-        reg_c_description = tk.Label(self.options_frame, text="XYZ Registration Channel:")
-        reg_c_description.grid(row=6, column=2, sticky="e", padx=10, pady=5)
-        # Create a Tkinter StringVar to store the selected channel
-        self.f1_reg_c_var = tk.StringVar()
-        self.f2_reg_c_var = tk.StringVar()
-        self.f1_reg_c_var.set(None)  # Set the default selected channel to the first in the list
-        self.f2_reg_c_var.set(None)
-
-        # Create the dropdown menu (OptionMenu)
-        self.f1_reg_c_dd = tk.OptionMenu(self.options_frame, self.f1_reg_c_var, 'NONE')
-        self.f1_reg_c_dd.grid(row=6, column=5, padx=10, pady=5)
-        self.f2_reg_c_dd = tk.OptionMenu(self.options_frame, self.f2_reg_c_var, 'NONE')
-        self.f2_reg_c_dd.grid(row=6, column=10, padx=10, pady=5)
-
-        # Bind the on_channel_select function to the dropdown menu event (when selection changes)
-        self.f1_reg_c_var.trace_add("write", self.on_channel_select)
-        self.f2_reg_c_var.trace_add("write", self.on_channel_select)
-
-        # FILE SEGMENTATION CHANNEL SELECTION
-        seg_c_description = tk.Label(self.options_frame, text="Nuclei Segmentation Channel:")
-        seg_c_description.grid(row=8, column=2, sticky="e", padx=10, pady=5)
-
-        # Create a Tkinter StringVar to store the selected SEG channel
-        self.f1_seg_c_var = tk.StringVar()
-        self.f2_seg_c_var = tk.StringVar()
-        self.f1_seg_c_var.set(None)  # Set the default selected channel to the first in the list
-        self.f2_seg_c_var.set(None)
-
-        # Create the SEG dropdown menu (OptionMenu)
-        self.f1_seg_c_dd = tk.OptionMenu(self.options_frame, self.f1_seg_c_var, 'NONE')
-        self.f1_seg_c_dd.grid(row=8, column=5, padx=10, pady=5)
-        self.f2_seg_c_dd = tk.OptionMenu(self.options_frame, self.f2_seg_c_var, 'NONE')
-        self.f2_seg_c_dd.grid(row=8, column=10, padx=10, pady=5)
-
-        # Bind the on_channel_select function to the dropdown menu event (when selection changes)
-        self.f1_seg_c_var.trace_add("write", self.on_channel_select)
-        self.f2_seg_c_var.trace_add("write", self.on_channel_select)
-
-
-        # FILE SEGMENTATION CHANNEL SELECTION
-        seg_c_algo_description = tk.Label(self.options_frame, text="Nuclei Segmentation Algorithm:")
-        seg_c_algo_description.grid(row=8, column=2, sticky="e", padx=10, pady=5)
-
-    def on_channel_select(self, *args):
-        """
-        Update options widgets after user selects input file path.
-        """
-
-        pass
-
-
-    def set_initial_filepaths(self):
-        if cfg.F1_PATH == None or cfg.F1_PATH == None == "":
-            pass
-        else:
-            self.f1_path_e.delete(0, tk.END)
-            self.f1_path_e.insert(0, cfg.F1_PATH)
-        if cfg.F2_PATH == None or cfg.F2_PATH == None == "":
-            pass
-        else:
-            self.f2_path_e.delete(0, tk.END)
-            self.f2_path_e.insert(0, cfg.F2_PATH == None)    
-
-
-
-      #  if cfgmgr.get_config_value("FILE_1_PATH") == None or cfgmgr.get_config_value("FILE_1_PATH") == "":
-       #     pass
-       # else:
-       #     self.f1_path_e.delete(0, tk.END)
-       #     self.f1_path_e.insert(0, cfgmgr.get_config_value("FILE_1_PATH"))
-       # if cfgmgr.get_config_value("FILE_2_PATH") == None or cfgmgr.get_config_value("FILE_2_PATH") == "":
-       #     pass
-       # else:
-       #     self.f2_path_e.delete(0, tk.END)
-       #     self.f2_path_e.insert(0, cfgmgr.get_config_value("FILE_2_PATH"))    
+        # Store references for later
+        setattr(self, f"{prefix}_path_label", path_label)
+        setattr(self, f"{prefix}_name_label", name_label)
+        setattr(self, f"{prefix}_type_label", type_label)
+        setattr(self, f"{prefix}_tag_label", tag_label)
+        setattr(self, f"{prefix}_reg_label", reg_label)
+        setattr(self, f"{prefix}_seg_label", seg_label)
 
 
     def open_file_1(self):
-        """
-        Update file 1 path entry widget with selected path name.
-        """
         filepath = filedialog.askopenfilename()
-        self.f1_path_e.delete(0, tk.END)
-        self.f1_path_e.insert(0, filepath)
-        self.set_file_select()
-
+        if filepath:
+            self.f1_path_e.delete(0, tk.END)
+            self.f1_path_e.insert(0, filepath)
+            self.set_file_labels(filepath, file_num=1)
 
     def open_file_2(self):
-        """
-        Update file 2 path entry widget with selected path name.
-        """
         filepath = filedialog.askopenfilename()
-        self.f2_path_e.delete(0, tk.END)
-        self.f2_path_e.insert(0, filepath)
-        self.set_file_select()
+        if filepath:
+            self.f2_path_e.delete(0, tk.END)
+            self.f2_path_e.insert(0, filepath)
+            self.set_file_labels(filepath, file_num=2)
 
+    def set_file_labels(self, filepath, file_num):
+        filename = os.path.basename(filepath)
+        ext = os.path.splitext(filepath)[1].lower().strip(".")
 
-    def set_file_select(self):
-        """
-        Creates option menu after filepaths are specified.
-        """
+        is_valid = ext in ["nd2", "tif", "tiff"]
+        file_type = f"{ext.upper()} File {'✔' if is_valid else '✘'}" if ext else "Unknown file ✘"
 
-        self.get_display_information()
-        self.update_display()
+        if file_num == 1:
+            self.f1_valid = is_valid
+            self.f1_path_label.config(text=f"PATH: {filepath}")
+            self.f1_name_label.config(text=f"NAME: {filename}")
+            self.f1_type_label.config(text=f"TYPE: {file_type}")
 
+            if ext == "nd2":
+                self.f1_metadata = self.process_nd2_metadata(filepath)
+                if self.f1_metadata:
+                    channels = self.f1_metadata['c_list']
+                    self.f1_reg_channel['values'] = channels
+                    self.f1_seg_channel['values'] = channels
 
-    def get_display_information(self):
-        """
-        Pull information from nd2 files for display to user.
-        """
-        f1_filepath = self.f1_path_e.get()
-        f2_filepath = self.f2_path_e.get()
-        print(f"FILE 1 and FILE 2 FILEPATHS: {f1_filepath} ---- {f2_filepath}")
+                    # Default reg channel to DAPI if present else first channel
+                    if "DAPI" in channels:
+                        self.f1_reg_channel.set("DAPI")
+                    elif channels:
+                        self.f1_reg_channel.current(0)
+                    else:
+                        self.f1_reg_channel.set('')
 
-        if f1_filepath and f1_filepath.endswith(".nd2"):
-            self.f1_metadata: dict = process_nd2.nd2_metadata_processor(f1_filepath)
+                    # Default seg channel to DAPI if present else second channel else first
+                    if "DAPI" in channels:
+                        self.f1_seg_channel.set("DAPI")
+                    elif len(channels) > 1:
+                        self.f1_seg_channel.current(1)
+                    elif channels:
+                        self.f1_seg_channel.current(0)
+                    else:
+                        self.f1_seg_channel.set('')
+            else:
+                self.f1_metadata = None
+
         else:
-            print("Invalid or missing FILE 1 path.")
+            self.f2_valid = is_valid
+            self.f2_path_label.config(text=f"PATH: {filepath}")
+            self.f2_name_label.config(text=f"NAME: {filename}")
+            self.f2_type_label.config(text=f"TYPE: {file_type}")
 
-        if f2_filepath and f2_filepath.endswith(".nd2"):
-            self.f2_metadata: dict = process_nd2.nd2_metadata_processor(f2_filepath)
+            if ext == "nd2":
+                self.f2_metadata = self.process_nd2_metadata(filepath)
+                if self.f2_metadata:
+                    channels = self.f2_metadata['c_list']
+                    self.f2_reg_channel['values'] = channels
+                    self.f2_seg_channel['values'] = channels
+
+                    # Default reg channel to DAPI if present else first channel
+                    if "DAPI" in channels:
+                        self.f2_reg_channel.set("DAPI")
+                    elif channels:
+                        self.f2_reg_channel.current(0)
+                    else:
+                        self.f2_reg_channel.set('')
+
+                    # Default seg channel to DAPI if present else second channel else first
+                    if "DAPI" in channels:
+                        self.f2_seg_channel.set("DAPI")
+                    elif len(channels) > 1:
+                        self.f2_seg_channel.current(1)
+                    elif channels:
+                        self.f2_seg_channel.current(0)
+                    else:
+                        self.f2_seg_channel.set('')
+            else:
+                self.f2_metadata = None
+
+        self.update_finalize_state()
+
+
+    def process_nd2_metadata(self, filepath):
+        try:
+            metadata = process_nd2.nd2_metadata_processor(filepath)
+            print(metadata)
+            return metadata
+        except Exception as e:
+            print(f"Error processing ND2 metadata: {e}")
+            return None
+
+    def update_finalize_state(self):
+        if self.f1_valid and self.f2_valid:
+            self.finalize_btn.config(state=tk.NORMAL)
         else:
-            print("Invalid or missing FILE 2 path.")
-
-
-    def update_display(self):
-        """
-        Set the display information of the selected files and options.
-        """
-        if not hasattr(self, 'f1_metadata') or not hasattr(self, 'f2_metadata'):
-            print("File metadata is incomplete. Skipping display update.")
-            return
-
-        f1_c_list = self.f1_metadata['c_list']
-        f2_c_list = self.f2_metadata['c_list']
-
-        self.f1_reg_c_dd.destroy()
-        self.f2_reg_c_dd.destroy()
-
-        self.f1_reg_c_dd = tk.OptionMenu(self.options_frame, self.f1_reg_c_var, *f1_c_list)
-        self.f2_reg_c_dd = tk.OptionMenu(self.options_frame, self.f2_reg_c_var, *f2_c_list)
-
-        self.f1_reg_c_dd.grid(row=6, column=5, padx=10, pady=5)
-        self.f2_reg_c_dd.grid(row=6, column=10, padx=10, pady=5)
-
-        self.dd_dapi_check(f1_c_list, f2_c_list)
-
-
-
-    def dd_dapi_check(self,f1_c_list,f2_c_list):
-        """
-        If DAPI is detected in dropdowns, automatically set dropdown selection to that channel.
-        """
-
-        # Check for 'DAPI' or 'dapi' in f1_c_list and set it
-        for item in f1_c_list:
-            if item.lower() == 'dapi':  # Case-insensitive comparison
-                self.f1_reg_c_var.set(item)  # Set the exact item found (preserve case)
-                self.f1_seg_c_var.set(item)
-                break
-
-        # Check for 'DAPI' or 'dapi' in f2_c_list and set it
-        for item in f2_c_list:
-            if item.lower() == 'dapi':  # Case-insensitive comparison
-                self.f2_reg_c_var.set(item)  # Set the exact item found (preserve case)
-                self.f2_seg_c_var.set(item)
-                break
-
+            self.finalize_btn.config(state=tk.DISABLED)
 
     def finalize_inputs(self):
-        """
-        Terminal point of the GUI after files and 
-        options are selected to proceed in pipeline.
-        Updates information in config.
-        """
 
-        # Pass variables from file metadata
-        cfg.F1_PATH = self.f1_path_e.get() 
-        cfg.F2_PATH = self.f2_path_e.get() 
-        cfg.F1_NTAG = self.f1_ntag_e.get()
-        cfg.F2_NTAG = self.f2_ntag_e.get()
+        # Establish file config values for directory generation
+        cfg.F1_PATH = self.f1_path_e.get()
+        cfg.F2_PATH = self.f2_path_e.get()
+        cfg.F1_NTAG = self.f1_tag_var.get()
+        cfg.F2_NTAG = self.f2_tag_var.get()
+        cfg.F1_REG_C = self.f1_reg_channel.get()
+        cfg.F2_REG_C = self.f2_reg_channel.get()
+        cfg.F1_SEG_C = self.f1_seg_channel.get()
+        cfg.F2_SEG_C = self.f2_seg_channel.get()
         cfg.F1_C_LIST = self.f1_metadata['c_list']
         cfg.F2_C_LIST = self.f2_metadata['c_list']
         cfg.F1_C_NUM = self.f1_metadata['c_num']
@@ -306,11 +243,13 @@ class FileInputGUI():
         cfg.F1_Z_NUM = self.f1_metadata['z_num']
         cfg.F2_Z_NUM = self.f2_metadata['z_num']
         
-        # Pass user-defined options
-        cfg.F1_REG_C = self.f1_reg_c_var.get()
-        cfg.F2_REG_C = self.f2_reg_c_var.get()
-        cfg.F1_SEG_C = self.f1_seg_c_var.get()
-        cfg.F2_SEG_C = self.f2_seg_c_var.get()
+        # Make output directories
+        mkdir.create_processing_directories()
 
-        # Switch to the next GUI passed by GUImanager
-        self.switch()      
+        # Generate nd2 metadata JSONs only if file is .nd2
+        if cfg.F1_PATH.lower().endswith('.nd2'):
+            process_nd2.extract_nd2_metadata_nd2lib(cfg.F1_PATH, cfg.OUTPUT_DIR)
+        if cfg.F2_PATH.lower().endswith('.nd2'):
+            process_nd2.extract_nd2_metadata_nd2lib(cfg.F2_PATH, cfg.OUTPUT_DIR)
+
+        self.switch()
