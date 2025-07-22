@@ -121,14 +121,35 @@ class FileInputGUI:
 
 
     def open_file_1(self):
-        filepath = filedialog.askopenfilename()
+        preferred_dir = "/research_jude/rgs01_jude/shres/CYTOG/common/cell-microinjection"
+        alt_dir = "/Volumes/cytogenetics/common/cell-microinjection"
+
+        if os.path.exists(preferred_dir):
+            initial_dir = preferred_dir
+        elif os.path.exists(alt_dir):
+            initial_dir = alt_dir
+        else:
+            initial_dir = os.getcwd()
+
+        filepath = filedialog.askopenfilename(initialdir=initial_dir)
         if filepath:
             self.f1_path_e.delete(0, tk.END)
             self.f1_path_e.insert(0, filepath)
             self.set_file_labels(filepath, file_num=1)
 
     def open_file_2(self):
-        filepath = filedialog.askopenfilename()
+        preferred_dir = "/research_jude/rgs01_jude/shres/CYTOG/common/cell-microinjection"
+        alt_dir = "/Volumes/cytogenetics/common/cell-microinjection"
+
+        if os.path.exists(preferred_dir):
+            initial_dir = preferred_dir
+        elif os.path.exists(alt_dir):
+            initial_dir = alt_dir
+        else:
+            initial_dir = os.getcwd()
+
+        print(initial_dir)
+        filepath = filedialog.askopenfilename(initialdir=initial_dir)
         if filepath:
             self.f2_path_e.delete(0, tk.END)
             self.f2_path_e.insert(0, filepath)

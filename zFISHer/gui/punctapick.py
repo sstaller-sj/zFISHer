@@ -1,6 +1,6 @@
 import tkinter as tk
 import os
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageGrab, ImageFont, ImageDraw
 #import zFISHer.config.config_manager as cfgmgr
 import zFISHer.utils.config as cfg
 import zFISHer.data.parameters as aparams
@@ -10,6 +10,7 @@ import math
 import platform
 from tkinter import colorchooser
 import random
+import io
 
 
 
@@ -20,7 +21,11 @@ class PunctaPickGUI(tk.Frame):
         self.ppm = 0.108333333333333 #micron_per_pixel 
         #TODO set up arrows
         self.arrows_arr = []
-        
+        self.arrow_sp = None
+        self.arrow_ep = None
+        #Store capture_img_index
+        self.capimg_count = 0
+           
         print("INTIALIZE ROI PICKING")
         self.set_root_window(master)    
         self.set_gui_switch(switch_to_gui_two)
@@ -242,6 +247,15 @@ class PunctaPickGUI(tk.Frame):
         for index, chan in enumerate(self.f2_cs):
             if chan == "DAPI":
                 self.f2_color_dict[chan] = "#0000FF"
+    def set_channel_roi_color_picker_vars(self):
+        self.f1_roi_color_dict = {}
+        self.f2_roi_color_dict = {}
+
+        for c in self.f1_cs:
+            self.f1_roi_color_dict[c] = f'#{random.randint(0, 0xFFFFFF):06x}'
+        for c in self.f2_cs:
+            self.f2_roi_color_dict[c] = f'#{random.randint(0, 0xFFFFFF):06x}'
+
     def make_bc_frames(self):
         # Define main frame to hold both of the file frames and a spacer frame
         self.bc_mframe = tk.Frame(self.control_window)
@@ -289,7 +303,8 @@ class PunctaPickGUI(tk.Frame):
             self.F1_cpick_dict[toggle_name] = tk.Label(self.bc1frame, width=2, height=1, bg=self.f1_color_dict[channel], relief="solid")
             self.F1_cpick_dict[toggle_name].grid(row=base_row+i*50, column=base_column + 10, sticky='w')
             # Define the color pick button
-            self.F1_cpick_but_dict[channel] = tk.Button(self.bc1frame, text=f"{self.f1_ntag}_C0_{self.f1_cs[0]}_COLOR", command=lambda: self.pick_channel_color(1, channel,self.f1_color_dict[channel]))
+            self.F1_cpick_but_dict[channel] = tk.Button(self.bc1frame, text=f"{self.f1_ntag}_C0_{self.f1_cs[0]}_COLOR", command=lambda ch=channel, lbl=self.F1_cpick_dict[f"F1_{channel}"]: self.pick_channel_color(1, ch, lbl))
+
             self.F1_cpick_but_dict[channel].grid(row=base_row+i*50, column=base_column + 5, sticky='w', pady=10)
             # Define brightness sliders
             self.F1_brightness_labels_dict[toggle_name] = tk.Label(self.bc1frame, text=f"Brightness")
@@ -324,7 +339,8 @@ class PunctaPickGUI(tk.Frame):
             self.F2_cpick_dict[toggle_name] = tk.Label(self.bc2frame, width=2, height=1, bg=self.f2_color_dict[channel], relief="solid")
             self.F2_cpick_dict[toggle_name].grid(row=base_row+i*50, column=base_column + 10, sticky='w')
             # Define the color pick button
-            self.F2_cpick_but_dict[channel] = tk.Button(self.bc2frame, text=f"{self.f2_ntag}_C0_{self.f2_cs[0]}_COLOR", command=lambda: self.pick_channel_color(1, channel,self.F2_cpick_dict[channel]))
+            self.F2_cpick_but_dict[channel] = tk.Button(self.bc2frame, text=f"{self.f2_ntag}_C0_{self.f2_cs[0]}_COLOR", command=lambda ch=channel, lbl=self.F2_cpick_dict[f"F2_{channel}"]: self.pick_channel_color(2, ch, lbl))
+
             self.F2_cpick_but_dict[channel].grid(row=base_row+i*50, column=base_column + 5, sticky='w', pady=10)
             # Define brightness sliders
             self.F2_brightness_labels_dict[toggle_name] = tk.Label(self.bc2frame, text=f"Brightness")
@@ -370,6 +386,8 @@ class PunctaPickGUI(tk.Frame):
         self.kpchantitle_label.grid(row=0, column=0, columnspan=8, padx=5, pady=5)
         # Define variables for each channel to be referenced during ROI picking
         self.set_ROI_picking_toggle_vars()
+        # Make and set channel colors for each channel in a dictionary
+        self.set_channel_roi_color_picker_vars()
         # Declare dictionaries of widgets for ROI control panel
         self.F1_roi_cb_dict = {}
         self.F2_roi_cb_dict = {}
@@ -424,10 +442,14 @@ class PunctaPickGUI(tk.Frame):
             self.F1F2_rb_dict[toggle_name] = tk.Radiobutton(frame, text=f"{self.f1_ntag}_{channel}_ROI",variable=self.KP_rb_selection, value=toggle_name, command=None)
             self.F1F2_rb_dict[toggle_name].grid(row=base_row+i, column=base_column, sticky=tk.W)
             # Define colorbutton for changing ROI circle color
-            self.F1F2_rb_color_dict[toggle_name] = tk.Label(frame, width=2, height=1, bg=self.f1_color_dict[channel], relief="solid")
+            self.F1F2_rb_color_dict[toggle_name] = tk.Label(frame, width=2, height=1, bg=self.f1_roi_color_dict[channel], relief="solid")
             self.F1F2_rb_color_dict[toggle_name].grid(row=base_row+i, column=base_column - 1)
             # Define a button underneath the label
-            self.F1F2_rb_color_buttons_dict[toggle_name] = tk.Button(frame, text="Change Color",command=lambda: self.pick_ROI_color(1, channel,self.F1F2_rb_color_dict[toggle_name]))
+            self.F1F2_rb_color_buttons_dict[toggle_name] = tk.Button(
+                frame,
+                text="Change Color",
+                command=lambda f=1, ch=channel, sq=self.F1F2_rb_color_dict[toggle_name]: self.pick_ROI_color(f, ch, sq)
+            )
             self.F1F2_rb_color_buttons_dict[toggle_name].grid(row=base_row + i, column=base_column-2)
             # Iterate to next channel
             channel_counter += 1
@@ -455,10 +477,14 @@ class PunctaPickGUI(tk.Frame):
             self.F1F2_rb_dict[toggle_name] = tk.Radiobutton(frame, text=f"{self.f2_ntag}_{channel}_ROI",variable=self.KP_rb_selection, value=toggle_name, command=None)
             self.F1F2_rb_dict[toggle_name].grid(row=base_row+i+channel_counter, column=base_column+0, sticky=tk.W)
             # Define colorbutton for changing ROI circle color
-            self.F1F2_rb_color_dict[toggle_name] = tk.Label(frame, width=2, height=1, bg=self.f2_color_dict[channel], relief="solid")
+            self.F1F2_rb_color_dict[toggle_name] = tk.Label(frame, width=2, height=1, bg=self.f2_roi_color_dict[channel], relief="solid")
             self.F1F2_rb_color_dict[toggle_name].grid(row=base_row+i+channel_counter, column=base_column - 1)
             # Define a button underneath the label
-            self.F1F2_rb_color_buttons_dict[toggle_name] = tk.Button(frame, text="Change Color",command=lambda: self.pick_ROI_color(2, channel,self.F1F2_rb_color_dict[toggle_name]))
+            self.F1F2_rb_color_buttons_dict[toggle_name] = tk.Button(
+                frame,
+                text="Change Color",
+                command=lambda f=2, ch=channel, sq=self.F1F2_rb_color_dict[toggle_name]: self.pick_ROI_color(f, ch, sq)
+            )
             self.F1F2_rb_color_buttons_dict[toggle_name].grid(row=base_row + i+channel_counter, column=base_column-2)
             # Iterate to next channel
             channel_counter += 1
@@ -530,11 +556,11 @@ class PunctaPickGUI(tk.Frame):
         self.polygon_toggle_checkbox = tk.Checkbutton(self.miscframe,text="Show Nuclei", variable=self.polygon_toggle_var, command=self.polygon_toggle).grid(row=2, column=2, columnspan=1)
 
         self.arrow_toggle_var = tk.BooleanVar(value=False)
-        self.arrow_toggle_checkbox = tk.Checkbutton(self.miscframe, text="Draw Arrows", variable=self.arrow_toggle_var, command=None).grid(row=4, column=1, columnspan=2)
+        self.arrow_toggle_checkbox = tk.Checkbutton(self.miscframe, text="Draw Arrows", variable=self.arrow_toggle_var, command=None).grid(row=5, column=1, columnspan=2)
 
         #CAPTURE IMAGE
         self.imgcap_button = tk.Button(self.miscframe, text="IMG CAPTURE WINDOW", command=lambda: self.capture_image())
-        self.imgcap_button.grid(row=5,column=1, columnspan=2)
+        self.imgcap_button.grid(row=7,column=1, columnspan=2)
 
         #Mouse position label 
         self.mousepos_label = tk.Label(self.miscframe, text="Current Mouse Position: (0000.00,0000.00)", fg="white", font=("Courier"))
@@ -543,6 +569,12 @@ class PunctaPickGUI(tk.Frame):
         y_lab = 0
         self.mousepos_label.config(text=f"Mouse Position: ({float(x_lab):07.2f}, {float(y_lab):07.2f})")
 
+        #Zoom label
+        self.zoom_label = tk.Label(self.miscframe, text="Magnification: (1.00,1.00)", fg="white", font=("Courier"))
+        self.zoom_label.grid(row=4, column=0, columnspan=3)  # Use grid instead of pack
+        x_lab = 1.00
+        y_lab = 1.00
+        self.zoom_label.config(text=f"Magnification: {self.imscale:.2f}x")    
         #print(f"init2 F1C1G {self.F1_C1_MIP.size}")
     ###
     def make_toggle_mip_dict(self):
@@ -687,8 +719,12 @@ class PunctaPickGUI(tk.Frame):
         padding_f2 = self.f2_padding
         # The image is black if no channel is selected
         if self.nochannelsselected(): 
-            self.current_composite_img = padded_baseimg.transpose(1,0,2)
+            blank_img = padded_baseimg.transpose(1, 0, 2)
+            blank_img = np.clip(blank_img, 0, 255).astype(np.uint8)
+            self.current_composite_img = Image.fromarray(blank_img)
+            self.display_composite_image()
             return
+
         # Create composite if image if >=1 channel is selected
         added_image = None
         processed_images = [padded_baseimg]
@@ -756,9 +792,9 @@ class PunctaPickGUI(tk.Frame):
         #print(f"HEX {color}")
         square.config(bg=color)
         if fnum == 1:
-            self.f1_color_dict[channel]
+            self.f1_color_dict[channel] = color
         if fnum == 2:
-            self.f2_color_dict[channel]
+            self.f2_color_dict[channel] = color
         # Remove the hash symbol if present
         hex_color = color.lstrip('#')
         # Convert the hex string to RGB tuple
@@ -819,6 +855,9 @@ class PunctaPickGUI(tk.Frame):
     def nochannelsselected(self):
         offcounter = 0
         for chantog in self.F1_toggles.values():
+            offcounter -= 1
+            if chantog.get() == False: offcounter += 1
+        for chantog in self.F2_toggles.values():
             offcounter -= 1
             if chantog.get() == False: offcounter += 1
         if offcounter >= 0: return True
@@ -917,6 +956,7 @@ class PunctaPickGUI(tk.Frame):
             scale        *= self.delta
 
         print(self.imscale)
+        self.zoom_label.config(text=f"Magnification: {self.imscale:.2f}x")    
 
         self.canvas.scale('all', x, y, scale, scale)  # rescale all canvas objects
         #self.canvas.scale('all', x, y, scale, scale)  # rescale all canvas objects
@@ -955,9 +995,9 @@ class PunctaPickGUI(tk.Frame):
             print(f"Hex color chosen: {color}")
         square.config(bg=color)
         if file == 1:
-            self.f1_color_dict[channel]
+            self.f1_roi_color_dict[channel] = color #### NEED TO MAKE A NEW ROI COLOR DICT,t his is the DICT FOR THE MIP COLOR
         if file == 2:
-            self.f2_color_dict[channel]
+            self.f2_roi_color_dict[channel] = color
         # Remove the hash symbol if present
         hex_color = color.lstrip('#')
         # Convert the hex string to RGB tuple
@@ -965,8 +1005,20 @@ class PunctaPickGUI(tk.Frame):
         print(f"RGB color chosen: {rgb}")
 
         self.recolor_channel_ROIs(file,channel,color)
+
     def recolor_channel_ROIs(self,file,channel,color):
-        pass
+        if file == 1:
+            roi_list = self.F1_ROI_dict[channel]
+        elif file == 2:
+            roi_list = self.F2_ROI_dict[channel]
+        else:
+            print(f"Invalid file number: {file}")
+            return
+
+        for roi in roi_list:
+            oval_id = roi[1]
+            self.canvas.itemconfig(oval_id, outline=color)
+
     def add_ROI(self,event):
         #NEED TO ADD IN LOGIC OF kp_add
         selectedchannel = self.KP_rb_selection.get()
@@ -976,12 +1028,12 @@ class PunctaPickGUI(tk.Frame):
             file = 1
             active_channel_arr = self.F1_ROI_dict[channel]
             ROI_radius_entry = self.F1_roi_radius_entry_dict[selectedchannel].get()
-            color = self.f1_color_dict[channel]
+            color = self.f1_roi_color_dict[channel]
         elif selectedchannel.startswith("F2_"):
             file = 2
             active_channel_arr = self.F2_ROI_dict[channel]
             ROI_radius_entry = self.F2_roi_radius_entry_dict[selectedchannel].get()
-            color = self.f2_color_dict[channel]
+            color = self.f2_roi_color_dict[channel]
         
         print(selectedchannel)
         print(channel)
@@ -1111,8 +1163,7 @@ class PunctaPickGUI(tk.Frame):
     ##################_ARROW_FUNCTIONS_#####################
     def make_arrow(self,event):
         print("ARROW!")
-        self.arrow_sp = None
-        self.arrow_ep = None
+
         eventx = self.canvas.canvasx(event.x)
         eventy = self.canvas.canvasy(event.y)   
         if self.arrow_sp is None:
@@ -1125,7 +1176,7 @@ class PunctaPickGUI(tk.Frame):
             
             print(f"ARROW END {self.arrow_ep}")
             # Draw an arrow from the start point to the end point
-            arrowid = self.canvas.create_line(self.arrow_sp[0], self.arrow_sp[1], self.arrow_ep[0], self.arrow_ep[1], arrow=tk.LAST, width=2,tags="arrow")
+            arrowid = self.canvas.create_line(self.arrow_sp[0], self.arrow_sp[1], self.arrow_ep[0], self.arrow_ep[1], arrow=tk.LAST, width=2,tags="arrow", fill="white")
             
 
             #Get arrowIndex
@@ -1165,7 +1216,16 @@ class PunctaPickGUI(tk.Frame):
             print(self.arrows_arr)
             #self.arrows_arr = [] #[arrowIndex,arrowID,x1,y1,x2,y2,arrowTextID,text_x,text_y]
             # Reset the start point for the next arrow
-            self.arrow_sp = None    
+            self.arrow_sp = None   
+    def generate_arrow_text(self,arrowindex):
+        x1,y1 = self.arrow_sp
+        x2,y2 = self.arrow_ep
+        x = int((x1+x2)/2)
+        y = int((y1+y2)/2)
+
+        arrow_ID = arrowindex
+        arrowtextid =self.canvas.create_text(x, y, text=str(arrow_ID), font=('Arial', 20), fill='magenta', tags='arrowtext')
+        return arrowtextid
     def remove_arrow(self,event):
         print("remove arrow")
         mousex = self.canvas.canvasx(event.x)
@@ -1198,6 +1258,62 @@ class PunctaPickGUI(tk.Frame):
                     self.arrows_arr = filterarr
                     print(self.arrows_arr)
                     self.canvas.delete(item)
+    ########################################################
+    ########################################################
+    ##################_CAPTURE_IMG_#########################  
+    def safe_color(self,color):
+        if not color or color.strip() == '':
+            return None
+        color = color.lower()
+        if color.startswith('system'):  # Filter out system colors
+            return 'black'  # fallback color
+        return color
+    def _draw_arrowhead(self, draw, p1, p2, fill):
+        from math import atan2, cos, sin, pi
+
+        # Length and angle of arrowhead
+        arrow_length = 10  # pixels
+        arrow_angle = pi / 6  # 30 degrees
+
+        dx = p2[0] - p1[0]
+        dy = p2[1] - p1[1]
+        angle = atan2(dy, dx)
+
+        left_angle = angle + pi - arrow_angle
+        right_angle = angle + pi + arrow_angle
+
+        left_x = p2[0] + arrow_length * cos(left_angle)
+        left_y = p2[1] + arrow_length * sin(left_angle)
+        right_x = p2[0] + arrow_length * cos(right_angle)
+        right_y = p2[1] + arrow_length * sin(right_angle)
+
+        draw.polygon([p2, (left_x, left_y), (right_x, right_y)], fill=fill) 
+    def capture_image(self):
+        self.capimg_count += 1 
+        export_dir = cfg.CAPTURE_IMG_DIR
+        #THIS CAPTURES WITH DRAWN WIDGETS -------
+        # Get the coordinates of the canvas
+        x = self.canvas.winfo_rootx()
+        y = self.canvas.winfo_rooty()
+        x1 = x + self.canvas.winfo_width()
+        y1 = y + self.canvas.winfo_height()
+
+        #self.master.attributes("-topmost", True)
+        self.control_window.lower(self.master)
+        self.control_window.update() 
+        # Capture the canvas content using ImageGrab
+        img = ImageGrab.grab((x, y, x1, y1))
+        
+        # STEP 6: Save final image with widgets
+        output_name = f"{self.capimg_count}_img_widget_{self.imscale:.2f}x.tiff"
+        output_path = os.path.join(export_dir, output_name)
+        img.save(output_path, 'TIFF')
+
+        
+        # STEP 7: Save image without widgets (if exportimg exists)
+        filename = f"{self.capimg_count}_img_NOwidget_{self.imscale:.2f}x.tiff"
+        nowidget_path = os.path.join(export_dir, filename)
+        self.exportimg._PhotoImage__photo.write(nowidget_path)               
     ########################################################
     ##################_SCALEBAR_############################   
     def toggle_scalebar(self):
@@ -1441,11 +1557,9 @@ class PunctaPickGUI(tk.Frame):
         #----
         print("FINISHED KP PICKING")
         self.switch_gui()
-        #self.master.destroy() 
-    
+        #self.master.destroy()  
     def switch_gui(self):
-        self.switch()
-    
+        self.switch()  
     def final_fullcapture(self):
 
         #GENERATE FULL SIZED IMG COMPOSITE

@@ -52,8 +52,8 @@ def create_processing_directories() -> None:
 
     # Define segmentation processing folder
         cfg.SEG_PROCESSING_DIR = os.path.join(cfg.PROCESSING_DIR,"SEGMENTATION")
-    # Define segmentation algorithm directory
-    #    cfg.SEG_ALGO_DIR = os.path.join(cfg.BASE_DIR,"/zFISHer/processing/segmentation")
+    # Define capture image (during puncta picking) directory
+        cfg.CAPTURE_IMG_DIR = os.path.join(cfg.PROCESSING_DIR,"IMAGE_CAPTURE")
         
     make_processing_directories()
 
@@ -79,8 +79,7 @@ def set_core_dir_values() -> None:
     # Then build path to processing/segmentation
     SEG_ALGO_DIR = os.path.join(MODULE_ROOT, "processing", "segmentation")
 
-
-    #cfg.BASE_DIR = BASE_DIR
+    # Store path values in config
     cfg.BASE_DIR = BASE_DIR
     cfg.OUTPUT_DIR = OUTPUT_DIR
     cfg.PROCESSING_DIR = PROCESSING_DIR
@@ -137,6 +136,9 @@ def make_processing_directories():
 
     # Create processing segmentation directory
     os.makedirs(cfg.SEG_PROCESSING_DIR, exist_ok=True)
+
+    # Create image capture directory
+    os.makedirs(cfg.CAPTURE_IMG_DIR, exist_ok=True)
 
 
 def clear_output_dir():
