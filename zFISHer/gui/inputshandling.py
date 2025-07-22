@@ -165,22 +165,37 @@ class InputsHandlingGUI:
             source_entries = self.moving_channel_entries
 
         source_widget = source_entries[source_channel][label_text]
+        val = source_widget.get() if isinstance(source_widget, tk.StringVar) else source_widget.get()
 
-        # Get value from source widget
-        if isinstance(source_widget, tk.StringVar):
-            val = source_widget.get()
+        # Decide scope of copy: to all, or only same-named channels
+        if label_text == "Cell/Organism Type:":
+            # Copy to ALL rows in both fixed and moving
+            for entries_dict in (self.fixed_channel_entries, self.moving_channel_entries):
+                for entries in entries_dict.values():
+                    widget = entries[label_text]
+                    if isinstance(widget, tk.StringVar):
+                        widget.set(val)
+                    else:
+                        widget.delete(0, tk.END)
+                        widget.insert(0, val)
         else:
-            val = source_widget.get()
+            # Copy only to rows with the same channel name (excluding the source)
+            for entries_dict in (self.fixed_channel_entries, self.moving_channel_entries):
+                for ch_name, entries in entries_dict.items():
+                    if ch_name != source_channel:
+                        continue  # Only copy to same-named channels
 
-        # Copy value to the same label in ALL channels in BOTH fixed and moving entries
-        for entries_dict in (self.fixed_channel_entries, self.moving_channel_entries):
-            for ch_name, entries in entries_dict.items():
-                widget = entries[label_text]
-                if isinstance(widget, tk.StringVar):
-                    widget.set(val)
-                else:
-                    widget.delete(0, tk.END)
-                    widget.insert(0, val)
+                    # Skip the exact row we copied from
+                    if entries_dict is source_entries and ch_name == source_channel:
+                        continue
+
+                    widget = entries[label_text]
+                    if isinstance(widget, tk.StringVar):
+                        widget.set(val)
+                    else:
+                        widget.delete(0, tk.END)
+                        widget.insert(0, val)
+
 
 
     def validate_entries(self, entries_dict):

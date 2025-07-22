@@ -161,7 +161,7 @@ class SegmentationGUI(tk.Frame):
             self.mousepos_label.config(text=f"Mouse Position: ({float(x_lab):07.2f}, {float(y_lab):07.2f})")
             
             self.finish_button = tk.Button(self.control_window, text="Finalize Nuclei Picking", command=self.finalize_nucpicking)
-            self.finish_button.grid(row=9, column=1, columnspan=2)     
+            self.finish_button.grid(row=50, column=1, columnspan=2)     
 
             self.ManPoly_toggle = tk.BooleanVar(value=False)
             self.polydraw_toggle_checkbox = tk.Checkbutton(self.control_window, text="Manual Polygon", variable=self.ManPoly_toggle)
@@ -183,10 +183,10 @@ class SegmentationGUI(tk.Frame):
             #self.seg_algo_path_e.insert(0, cfg.NUC_SEG_ALGO_PATH)  #set default algorithm path
 
             self.remove_all_button = tk.Button(self.control_window, text="Remove All Polygons", command=self.remove_all_polygons)
-            self.remove_all_button.grid(row=13, column=3, padx=10, pady=5)
+            self.remove_all_button.grid(row=20, column=1, padx=10, pady=5, columnspan=2)
 
             self.autosegment_button = tk.Button(self.control_window, text="Autosegment Image", command=self.auto_segment_polygons)
-            self.autosegment_button.grid(row=14, column=3, padx=10, pady=5)
+            self.autosegment_button.grid(row=21, column=1, padx=10, pady=5, columnspan=2)
 
     def set_default_algorithm(self):
         if cfg.NUC_SEG_DEFAULT_SCRIPT is not None:

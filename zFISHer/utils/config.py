@@ -76,3 +76,6 @@ RAND_COLOC_PERCENT = None   # During calculations how many ROI pairs between two
 
 # Channel Metadata
 CH_METADATA = None
+
+# Capture Images path
+CAPTURE_IMG_DIR = None # path to folder for images captured by user during punctapick

@@ -114,12 +114,12 @@ class RegistrationXYGUI():
         self.f1width, self.f1height = f1.size
         self.f2width, self.f2height = f2.size
 
-        self.f1_filename_lab = tk.Label(self.fnameframe, text=f"{self.f1_ntag}(F1): {self.F1_base_path}")
+        self.f1_filename_lab = tk.Label(self.fnameframe, text=f"{self.f1_ntag}(FIXED): {self.f1_ntag}")
         self.f1_filename_lab.grid(row=1, column=0, columnspan=2)
         self.f1_fdim_lab = tk.Label(self.fnameframe, text =f"{self.f1width}x{self.f1height}")
         self.f1_fdim_lab.grid(row=1, column=2, columnspan=2)
 
-        self.f2_filename_lab = tk.Label(self.fnameframe, text=f"{self.f2_ntag}(F2): {self.F2_base_path}")
+        self.f2_filename_lab = tk.Label(self.fnameframe, text=f"{self.f2_ntag}(MOVING): {self.f2_ntag}")
         self.f2_filename_lab.grid(row=2, column=0, columnspan=2)
         self.f2_fdim_lab = tk.Label(self.fnameframe, text =f"{self.f2width}x{self.f2height}")
         self.f2_fdim_lab.grid(row=2, column=2, columnspan=2)
